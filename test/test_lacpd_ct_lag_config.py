@@ -51,9 +51,31 @@ sw_40G_intf_end = 54
 n_40G_link2 = 6
 sw_40G_intf = [str(i) for i in irange(sw_40G_intf_start, sw_40G_intf_end)]
 
+# This method calls a function to retrieve data, then calls another function
+# to compare the data to the expected value(s). If it fails, it sleeps for
+# half a second, then retries, up to a specified retry limit (default 20 = 10
+# seconds). It returns a tuple of the test status and the actual results.
+def timed_compare(data_func, params, compare_func, expected_results, retries = 20, debug = False):
+    while retries != 0:
+        if debug:
+            print "Calling ", data_func
+        actual_results = data_func(params)
+        if debug:
+            print "results ", actual_results
+        result = compare_func(actual_results, expected_results, retries == 1)
+        if debug:
+            print "compare results ", result
+        if result == True:
+            return True, actual_results
+        if debug:
+            print "retries: ", retries
+        time.sleep(0.5)
+        retries -= 1
+    return False, actual_results
 
 def short_sleep(tm=.5):
-    time.sleep(tm)
+    #time.sleep(tm)
+    pass
 
 
 # Set user_config for an Interface.
@@ -125,23 +147,19 @@ def simulate_link_state(sw, interface, link_state="up"):
 # This function returns a list of values if 2 or more
 # fields are requested, and returns a single value (no list)
 # if only 1 field is requested.
-def sw_get_intf_state(sw, interface, fields):
-    c = OVS_VSCTL + "get interface " + str(interface)
-    for f in fields:
+def sw_get_intf_state(params):
+    c = OVS_VSCTL + "get interface " + str(params[1])
+    for f in params[2]:
         c += " " + f
-    out = sw.ovscmd(c).splitlines()
-    # If a single column value is requested,
-    # then return a singleton value instead of list.
-    if len(out) == 1:
-        out = out[0]
+    out = params[0].ovscmd(c).splitlines()
     debug(out)
     return out
 
-def sw_get_port_state(sw, port, fields):
-    c = OVS_VSCTL + "get port " + str(port)
-    for f in fields:
+def sw_get_port_state(params):
+    c = OVS_VSCTL + "get port " + str(params[1])
+    for f in params[2]:
         c += " " + f
-    out = sw.ovscmd(c).splitlines()
+    out = params[0].ovscmd(c).splitlines()
     if len(out) == 1:
         out = out[0]
     debug(out)
@@ -229,7 +247,9 @@ def remove_intf_from_bond(sw, bond_name, intf_name, fail=True):
 
     c = OVS_VSCTL + "set port " + bond_name + " interfaces=" + new_intf_str
     debug(c)
-    return sw.cmd(c)
+    out = sw.cmd(c)
+
+    return out
 
 
 # Remove a list of Interfaces from the bond.
@@ -238,23 +258,70 @@ def remove_intf_list_from_bond(sw, bond_name, intf_list):
         remove_intf_from_bond(sw, bond_name, intf)
 
 
+def verify_compare_value(actual, expected, final):
+    if actual != expected:
+        return False
+    return True
+
+def verify_compare_tuple(actual, expected, final):
+    if len(actual) != len(expected):
+        return False
+    if actual != expected:
+        return False
+    return True
+
+def verify_compare_tuple_negate(actual, expected, final):
+    if len(actual) != len(expected):
+        return False
+    for i in range(0, len(expected)):
+        if actual[i] == expected[i]:
+            return False
+    return True
+
+def verify_compare_complex(actual, expected, final):
+    attrs = []
+    for attr in expected:
+        attrs.append(attr)
+    if len(actual) != len(expected):
+        return False
+    for i in range(0, len(attrs)):
+        if actual[i] != expected[attrs[i]]:
+            return False
+    return True
+
 # Verify that an Interface is part of a bond.
-def verify_intf_in_bond(sw, intf, msg):
-    rx_en, tx_en = sw_get_intf_state(sw, intf, ['hw_bond_config:rx_enabled', \
-                                                'hw_bond_config:tx_enabled'])
-    assert rx_en == 'true' and tx_en == 'true', msg
+def verify_intf_in_bond(sw, intf, msg, debug=False):
+    result = timed_compare(sw_get_intf_state,
+                          (sw, intf, ['hw_bond_config:rx_enabled', \
+                                      'hw_bond_config:tx_enabled']),
+                          verify_compare_tuple, ['true', 'true'], debug = debug)
+    assert result == (True, ["true", "true"]), msg
 
 
 # Verify that an Interface is not part of any bond.
 def verify_intf_not_in_bond(sw, intf, msg):
-    rx_en, tx_en = sw_get_intf_state(sw, intf, ['hw_bond_config:rx_enabled', \
-                                                'hw_bond_config:tx_enabled'])
-    assert rx_en != 'true' and tx_en != 'true', msg
+    result = timed_compare(sw_get_intf_state,
+                           (sw, intf, ['hw_bond_config:rx_enabled', \
+                                       'hw_bond_config:tx_enabled']),
+                           verify_compare_tuple_negate, ['true', 'true'])
+    assert result[0] == True and result[1][0] != 'true' and result[1][1] != 'true', msg
 
 # Verify Interface status
 def verify_intf_status(sw, intf, column_name, value, msg=''):
-    column_val = sw_get_intf_state(sw, intf, [column_name])
-    assert column_val == value, msg
+    result = timed_compare(sw_get_intf_state,
+                           (sw, intf, [column_name]),
+                           verify_compare_tuple, [value])
+    assert result == (True, [value]), msg
+
+def verify_intf_field_absent(sw, intf, field, msg):
+    retries = 20
+    while  retries != 0:
+        result = sw_get_intf_state((sw, intf, [field]))
+        if "no key" in result[0]:
+            return
+        time.sleep(0.5)
+        retries -= 1
+    assert "no key" in result, msg
 
 def verify_intf_lacp_status(sw, intf, verify_values, context=''):
     request = []
@@ -262,15 +329,18 @@ def verify_intf_lacp_status(sw, intf, verify_values, context=''):
     for attr in verify_values:
         request.append('lacp_status:' + attr)
         attrs.append(attr)
-    field_vals = sw_get_intf_state(sw, intf, request)
-    if len(request) == 1:
-        field_vals = [field_vals]
+    result = timed_compare(sw_get_intf_state,
+                           (sw, intf, request),
+                           verify_compare_complex, verify_values)
+    field_vals = result[1]
     for i in range(0, len(attrs)):
         assert field_vals[i] == verify_values[attrs[i]], context + ": invalid value for " + attrs[i] + ", expected " + verify_values[attrs[i]] + ", got " + field_vals[i]
 
 def verify_port_lacp_status(sw, lag, value, msg=''):
-    lacp_status = sw_get_port_state(sw, lag, ["lacp_status"])
-    assert lacp_status == value, msg
+    result = timed_compare(sw_get_port_state,
+                           (sw, lag, ["lacp_status"]),
+                           verify_compare_value, value)
+    assert result == (True, value), msg
 
 def lacpd_switch_pre_setup(sw):
 
@@ -381,8 +451,6 @@ class lacpdTest(HalonTest):
         info("\n============= lacpd user config (static LAG) tests =============\n")
         s1 = self.net.switches[0]
         s2 = self.net.switches[1]
-        #CLI(Test_lacpd.test.net)
-
 
         # Setup valid pluggable modules.
         info("Setting up valid pluggable modules in all the Interfaces.\n")
@@ -396,7 +464,7 @@ class lacpdTest(HalonTest):
         # When Interfaces are not enabled, they shouldn't be added to LAG.
         info("Verify that interfaces are not added to LAG when they are disabled.\n")
         for intf in sw_1G_intf[0:8] + sw_10G_intf[0:8] + sw_40G_intf[0:8]:
-            verify_intf_not_in_bond(s1, intf, "Interfaces shsould not be part of LAG "
+            verify_intf_not_in_bond(s1, intf, "Interfaces should not be part of LAG "
                                               "when they are disabled.")
 
         info("Enbling all the interfaces.\n")
@@ -415,9 +483,6 @@ class lacpdTest(HalonTest):
 
         for intf in sw_40G_intf[0:8]:
             verify_intf_in_bond(s1, intf, "Expected the 40G interfaces to be added to static lag")
-
-        # HALON_TODO: Verify LAG status for static LAGs.
-        #             Verify the LAG operation speed.
 
         # Remove an Interface from bond.
         # Verify that hw_bond_config:{rx_enabled="false", tx_enabled="false"}
@@ -494,6 +559,12 @@ class lacpdTest(HalonTest):
         # Setup valid pluggable modules.
         self.test_pre_setup()
 
+        sw_set_intf_user_config(s1, sw_1G_intf[0], ['admin=up'])
+        sw_set_intf_user_config(s1, sw_1G_intf[1], ['admin=up'])
+
+        sw_set_intf_user_config(s1, sw_10G_intf[0], ['admin=up'])
+        sw_set_intf_user_config(s1, sw_10G_intf[1], ['admin=up'])
+
         # Create a static LAG with Interfaces of multiple speeds.
         sw_create_bond(s1, "lag0", sw_1G_intf[0:2])
         add_intf_list_from_bond(s1, "lag0", sw_10G_intf[0:2])
@@ -502,15 +573,24 @@ class lacpdTest(HalonTest):
         # then the first interface is choosen as base, and
         # then only those interfaces of the same speed are added to LAG
 
+        info("Verify that interfaces with matching speeds are enabled in LAG.\n")
+        for intf in sw_1G_intf[0:2]:
+            verify_intf_in_bond(s1, intf, "Expected the 1G interfaces to be added to LAG ")
+
         info("Verify that interfaces with non-matching speeds are disabled in LAG.\n")
         for intf in sw_10G_intf[0:2]:
             verify_intf_not_in_bond(s1, intf, "Expected the 10G interfaces not added to LAG "
                                               "when there is speed mismatch")
 
-        # HALON_TODO: When both the 1G interfaces are disabled/down,
+        # When both the 1G interfaces are disabled/down,
         # then we should add the 10G interfaces to LAG.
-        # Currently it is not working as expected.
-        # Add the tests when it is fixed.
+        info("Verify interfaces join LAG when speed matching block is removed.\n")
+
+        remove_intf_list_from_bond(s1, "lag0", sw_1G_intf[0:2])
+
+        for intf in sw_10G_intf[0:2]:
+            verify_intf_in_bond(s1, intf, \
+                            "Interface should be added to bond after others are deleted.")
 
         sw_delete_bond(s1, "lag0")
 
@@ -554,8 +634,10 @@ class lacpdTest(HalonTest):
             sw_set_intf_user_config(s1, intf, ['admin=up'])
             sw_set_intf_user_config(s2, intf, ['admin=up'])
 
-        sw_create_bond(s1, "lag0", sw_1G_intf[0:2], lacp_mode="active")
-        sw_create_bond(s2, "lag0", sw_1G_intf[0:2], lacp_mode="active")
+        out = sw_create_bond(s1, "lag0", sw_1G_intf[0:2], lacp_mode="active")
+        print out
+        out = sw_create_bond(s2, "lag0", sw_1G_intf[0:2], lacp_mode="active")
+        print out
 
         short_sleep(8)
 
@@ -711,20 +793,19 @@ class lacpdTest(HalonTest):
 
         short_sleep(2)
 
-        # Get sys_id and sys_pri
-        sys = sw_get_intf_state(s1, intf, ['lacp_status:actor_system_id']).split(',')
-
-        info("Verify open_vswitch:lacp_config:lacp-system-id.\n")
-        assert sys[1] == change_mac, \
-                         "actor_system_id should be %s, is %s".format(change_mac, sys[1])
-
-        info("Verify open_vswitch:lacp_config:lacp-system-priority.\n")
-        assert sys[0] == change_prio, "actor_system_priority should be %s, is %s".format(change_prio, sys[0])
+        info("Verify open_vswitch:lacp_config:lacp-system-id and lacp-system-priority.\n")
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_system_id": change_prio + "," + change_mac
+                  },
+                "s1:" + intf)
 
         # Clear sys_id and sys_pri, verify that values go back to default
         sys_open_vsw_lacp_config_clear(s1)
 
         short_sleep(4)
+
         verify_intf_lacp_status(s1,
                 intf,
                 {
@@ -739,57 +820,64 @@ class lacpdTest(HalonTest):
         set_open_vsw_lacp_config(s1, ['lacp-system-id=' + invalid_mac])
         set_open_vsw_lacp_config(s1, ['lacp-system-priority=99999'])
         short_sleep(4)
-        sys = sw_get_intf_state(s1, intf, ['lacp_status:actor_system_id']).split(',')
-        assert sys[1] == system_mac[1], \
-                         "actor_system_id should be %s, is %s".format(system_mac[1], sys[1])
-        assert sys[0] == system_prio[1], "actor_system_priority should be %s, is %s".format(system_prio[1], sys[0])
+
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                  "Dist:1,Def:0,Exp:0",
+                  "actor_system_id" : system_prio[1] + "," + system_mac[1],
+                  "partner_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                    "Dist:1,Def:0,Exp:0",
+                  "partner_system_id" : base_prio + "," + base_mac[2]
+                  },
+                "s1:" + intf)
 
 
         # Test port:lacp
-        state_string = sw_get_intf_state(s1, intf, ['lacp_status:actor_state'])
-        states = parse_lacp_state(state_string)
-
-        info("Verify port:lacp.\n")
-        assert states['Activ'] == '1', "Actor mode should be Active(1), is %s".format(states['Activ'])
 
         # Set lacp to "passive"
         set_port_parameter(s1, "lag0" , [ 'lacp=passive'])
 
-        short_sleep(2)
-
-        state_string = sw_get_intf_state(s1, intf, ['lacp_status:actor_state'])
-        states = parse_lacp_state(state_string)
-        assert states['Activ'] == '0', "Actor mode should be Passive(0), is %s".format(states['Activ'])
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_state" : "Activ:0,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                  "Dist:1,Def:0,Exp:0",
+                  "actor_system_id" : system_prio[1] + "," + system_mac[1],
+                  "partner_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                    "Dist:1,Def:0,Exp:0",
+                  "partner_system_id" : base_prio + "," + base_mac[2]
+                  },
+                "s1:" + intf)
 
         # Set lacp to "off"
         set_port_parameter(s1, "lag0" , [ 'lacp=off'])
 
         short_sleep(6)
 
-        state_string = sw_get_intf_state(s1, intf, ['lacp_status:actor_state'])
-        if "no key actor_state" not in state_string:
-            assert 1 == 0, "lacp status should be empty, but state is [%s]" % state_string
+        verify_intf_field_absent(s1, intf, 'lacp_status:actor_state', "lacp status should be empty")
 
         # Set lacp to "active"
         set_port_parameter(s1, "lag0" , [ 'lacp=active'])
 
         short_sleep(6)
 
-        state_string = sw_get_intf_state(s1, intf, ['lacp_status:actor_state'])
-        states = parse_lacp_state(state_string)
-        assert states['Activ'] == '1', "Actor mode should be Active(1), is %s".format(states['Activ'])
-
-        # Test port:other_config:{lacp-system-id,lacp-system-priority,lacp-time}
-        # HALON_TODO: Add tests for sys_id and sys_pri when code is added.
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                  "Dist:1,Def:0,Exp:0",
+                  "actor_system_id" : system_prio[1] + "," + system_mac[1],
+                  "partner_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                    "Dist:1,Def:0,Exp:0",
+                  "partner_system_id" : base_prio + "," + base_mac[2]
+                  },
+                "s1:" + intf)
 
         # Test lacp-time
 
         info("Verify port:other_config:lacp-time.\n")
-
-        # Verify default is "timeout", which is "fast"
-        state_string = sw_get_intf_state(s1, intf, ['lacp_status:actor_state'])
-        states = parse_lacp_state(state_string)
-        assert states['TmOut'] == '1', "Timeout should be set(1), is %s".format(states['TmOut'])
 
         # Set lacp-time to "slow"
         set_port_parameter(s1, "lag0" , [ 'other_config:lacp-time=slow'])
@@ -797,9 +885,17 @@ class lacpdTest(HalonTest):
         short_sleep(2)
 
         # Verify "timeout" is now "slow"
-        state_string = sw_get_intf_state(s1, intf, ['lacp_status:actor_state'])
-        states = parse_lacp_state(state_string)
-        assert states['TmOut'] == '0', "Timeout should be not set(0), is %s".format(states['TmOut'])
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_state" : "Activ:1,TmOut:0,Aggr:1,Sync:1,Col:1,"
+                                  "Dist:1,Def:0,Exp:0",
+                  "actor_system_id" : system_prio[1] + "," + system_mac[1],
+                  "partner_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                    "Dist:1,Def:0,Exp:0",
+                  "partner_system_id" : base_prio + "," + base_mac[2]
+                  },
+                "s1:" + intf)
 
         # Set lacp-time back to "fast"
         set_port_parameter(s1, "lag0" , [ 'other_config:lacp-time=fast'])
@@ -807,53 +903,59 @@ class lacpdTest(HalonTest):
         short_sleep(2)
 
         # Verify "timeout" is now "fast"
-        state_string = sw_get_intf_state(s1, intf, ['lacp_status:actor_state'])
-        states = parse_lacp_state(state_string)
-        assert states['TmOut'] == '1', "Timeout should be set(1), is %s".format(states['TmOut'])
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                  "Dist:1,Def:0,Exp:0",
+                  "actor_system_id" : system_prio[1] + "," + system_mac[1],
+                  "partner_state" : "Activ:1,TmOut:1,Aggr:1,Sync:1,Col:1,"
+                                    "Dist:1,Def:0,Exp:0",
+                  "partner_system_id" : base_prio + "," + base_mac[2]
+                  },
+                "s1:" + intf)
 
-        # OPS_TODO: lacp-aggregation-key is nonsensical in this context. The
-        # implementation has been removed from lacpd.
+        # OPS_TODO: lacp-aggregation-key isn't implemented.
         # Test interface:other_config:{lacp-port-id,lacp-port-priority}
 
         # save original values
-        original_pri_info = sw_get_intf_state(s1, intf, ['lacp_status:actor_port_id']).split(',')
+        original_pri_info = sw_get_intf_state((s1, intf, ['lacp_status:actor_port_id']))[0]
         # Set port_id, port_priority, and aggregation-key
         set_intf_other_config(s1, intf, ['lacp-port-id=222', 'lacp-port-priority=123'])
         short_sleep()
 
         # Get the new values
-        pri_info = sw_get_intf_state(s1, intf, ['lacp_status:actor_port_id']).split(',')
-
-        info("Verify port-priority.\n")
-        assert pri_info[0] == '123', "Port priority should be 123, is %s" % pri_info[0]
-
-        info("Verify port-id.\n")
-        assert pri_info[1] == '222', "Port id should be 222, is %s" % pri_info[1]
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_port_id" : "123,222"
+                  },
+                "s1:" + intf)
 
         # Set invalid port_id and port_priority
         set_intf_other_config(s1, intf, ['lacp-port-id=-1', 'lacp-port-priority=-1'])
         short_sleep()
 
         # Get the new values
-        pri_info = sw_get_intf_state(s1, intf, ['lacp_status:actor_port_id']).split(',')
-
-        info("Verify port-priority.\n")
-        assert pri_info[0] == original_pri_info[0], "Port priority should be %s, is %s".format(original_pri_info[0], pri_info[0])
-
-        info("Verify port-id.\n")
-        assert pri_info[1] == original_pri_info[1], "Port id should be %s, is %s".format(original_pri_info[1], pri_info[1])
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_port_id" : original_pri_info
+                  },
+                "s1:" + intf)
 
         set_intf_other_config(s1, intf, ['lacp-port-id=65536', 'lacp-port-priority=65536'])
         short_sleep(2)
 
         # Get the new values
-        pri_info = sw_get_intf_state(s1, intf, ['lacp_status:actor_port_id']).split(',')
+        pri_info = sw_get_intf_state((s1, intf, ['lacp_status:actor_port_id']))[0].split(',')
 
-        info("Verify port-priority.\n")
-        assert pri_info[0] == original_pri_info[0], "Port priority should be %s, is %s".format(original_pri_info[0], pri_info[0])
-
-        info("Verify port-id.\n")
-        assert pri_info[1] == original_pri_info[1], "Port id should be %s, is %s".format(original_pri_info[1], pri_info[1])
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_port_id" : original_pri_info
+                  },
+                "s1:" + intf)
 
         info("Clear lacp-port-id and lacp-port-priority\n")
         s1.cmd("ovs-vsctl remove interface " + intf + " other_config lacp-port-id")
@@ -861,13 +963,12 @@ class lacpdTest(HalonTest):
 
         short_sleep(2)
 
-        pri_info = sw_get_intf_state(s1, intf, ['lacp_status:actor_port_id']).split(',')
-
-        info("Verify port-priority.\n")
-        assert pri_info[0] == original_pri_info[0], "Port priority should be %s, is %s".format(original_pri_info[0], pri_info[0])
-
-        info("Verify port-id.\n")
-        assert pri_info[1] == original_pri_info[1], "Port id should be %s, is %s".format(original_pri_info[1], pri_info[1])
+        verify_intf_lacp_status(s1,
+                intf,
+                {
+                  "actor_port_id" : original_pri_info
+                  },
+                "s1:" + intf)
 
         info("Verify port lacp_status\n")
         # verify lag status
@@ -1032,11 +1133,11 @@ class Test_lacpd:
         del self.test
 
     # Link aggregation(lacp) daemon tests.
-    #def test_lacpd_static_lag_config(self):
-    #    self.test.static_lag_config()
+    def test_lacpd_static_lag_config(self):
+        self.test.static_lag_config()
 
-    #def test_lacpd_static_lag_negative_tests(self):
-    #    self.test.static_lag_negative_tests()
+    def test_lacpd_static_lag_negative_tests(self):
+        self.test.static_lag_negative_tests()
 
     def test_lacpd_dynamic_lag_config(self):
         self.test.dynamic_lag_config()
