@@ -7,8 +7,10 @@ Verify that the configured interfaces are included or excluded from a static LAG
 Add the Python script where this test is implemented. This applies to all test cases in this document.
 ### Setup
 #### Topology diagram
-```
-[h1] <--> [s1] <--> [s2] <--> [h2]
+```ditaa
++------+    +------+    +------+    +------+
+|  h1  +----+  s1  +----+  s2  +----+  h2  |
++------+    +------+    +------+    +------+
 ```
 ### Description ###
 1. Create LAGs with 1 Gb, 10 Gb, and 40 Gb interfaces. Verify that the interfaces are not operating in LAGs (because they are not enabled).
@@ -32,8 +34,10 @@ Verify that interfaces that violate one or more LAG exclusion rules do not opera
 The Virtual Mininet test setup is required for this test.
 ### Setup
 #### Topology diagram
-```
-[h1] <--> [s1] <--> [s2] <--> [h2]
+```ditaa
++------+    +------+    +------+    +------+
+|  h1  +----+  s1  +----+  s2  +----+  h2  |
++------+    +------+    +------+    +------+
 ```
 ### Description
 1. Enable 1 Gb and 10 Gb interfaces.
@@ -54,8 +58,10 @@ Verify that the lacpd is processing the LACP configuration and the protocol corr
  - Virtual mininet test setup
 ### Setup
 #### Topology diagram
-```
-[h1] <--> [s1] <--> [s2] <--> [h2]
+```ditaa
++------+    +------+    +------+    +------+
+|  h1  +----+  s1  +----+  s2  +----+  h2  |
++------+    +------+    +------+    +------+
 ```
 ### Description
 1. Access system\_mac (system:system\_mac) for s1 and s2.
