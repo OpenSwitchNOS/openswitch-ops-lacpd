@@ -491,35 +491,6 @@ LAG_select_aggregator(LAG_t *const lag, lacp_per_port_variables_t *lacp_port)
     REXIT();
 } // LAG_select_aggregator
 
-//******************************************************************
-// Function : LAG_attached_to_aggregator
-// Unused ?
-//******************************************************************
-void
-LAG_attached_to_aggregator(port_handle_t lport_handle,int result)
-{
-    lacp_per_port_variables_t *lacp_port;
-
-    RENTRY();
-    RDEBUG(DL_SELECT, "%s : lport_handle 0x%llx\n", __FUNCTION__, lport_handle);
-
-    printf ("==============ATTACHED =========================\n");
-    lacp_port = LACP_AVL_FIND(lacp_per_port_vars_tree, &lport_handle);
-    if (lacp_port == NULL) {
-        VLOG_ERR("%s : can't find lport 0x%llx", __FUNCTION__, lport_handle);
-        return;
-    }
-
-    if (result == R_SUCCESS) {
-        stop_wait_while_timer(lacp_port);
-        lacp_port->lacp_control.selected = SELECTED;
-        LACP_mux_fsm(E1,
-                     lacp_port->mux_fsm_state,
-                     lacp_port);
-    }
-
-    REXIT();
-} // LAG_attached_to_aggregator
 
 //**************************************************************
 // Function : is_port_partner_port
