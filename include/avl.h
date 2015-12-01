@@ -45,7 +45,6 @@ extern void *lacp_avl_find(lacp_avl_tree_t *, void *);
 extern void *lacp_avl_find_or_find_next(lacp_avl_tree_t *, void *, int);
 extern void *lacp_avl_next(lacp_avl_node_t *);
 extern void *lacp_avl_prev(lacp_avl_node_t *);
-extern unsigned int lacp_avl_get_num_nodes(lacp_avl_tree_t *);
 
 /* AVL access macros. */
 #define LACP_AVL_INIT_TREE(TREE, COMPARE)  (TREE).compare = &(COMPARE);  \
@@ -53,11 +52,6 @@ extern unsigned int lacp_avl_get_num_nodes(lacp_avl_tree_t *);
                                            (TREE).last = NULL;           \
                                            (TREE).root = NULL;           \
                                            (TREE).num_nodes = 0
-
-#define LACP_AVL_TREE_INITIALIZER(TREE, COMPARE)  {compare: COMPARE,     \
-                                                   first:NULL,           \
-                                                   last:NULL,            \
-                                                   root:NULL }
 
 #define LACP_AVL_INIT_NODE(NODE, SELF, KEY) (NODE).parent = NULL;        \
                                             (NODE).left = NULL;          \
@@ -69,22 +63,16 @@ extern unsigned int lacp_avl_get_num_nodes(lacp_avl_tree_t *);
 
 /* Macro definitions. */
 #define LACP_AVL_INSERT(TREE, NODE)         (lacp_avl_insert_or_find(&(TREE), &(NODE)) == NULL)
-#define LACP_AVL_INSERT_OR_FIND(TREE, NODE) lacp_avl_insert_or_find(&(TREE), &(NODE))
 #define LACP_AVL_DELETE(TREE, NODE)         lacp_avl_delete(&(TREE), &(NODE))
 #define LACP_AVL_FIND(TREE, KEY)            lacp_avl_find(&(TREE), (KEY))
 #define LACP_AVL_NEXT(NODE)                 lacp_avl_next(&(NODE))
-#define LACP_AVL_PREV(NODE)                 lacp_avl_prev(&(NODE))
 #define LACP_AVL_FIRST(TREE)                (((&(TREE))->first != NULL) ? (&(TREE))->first->self : NULL)
-#define LACP_AVL_LAST(TREE)                 (((&(TREE))->last != NULL) ? (&(TREE))->last->self : NULL)
 #define LACP_AVL_IN_TREE(NODE)              (((NODE).l_height != -1) && ((NODE).r_height != -1))
 #define LACP_AVL_FIND_NEXT(TREE, KEY)       lacp_avl_find_or_find_next(&(TREE), (KEY), TRUE)
-#define LACP_AVL_FIND_OR_FIND_NEXT(TREE, KEY) lacp_avl_find_or_find_next(&(TREE), (KEY), FALSE)
-#define LACP_AVL_NODE_COUNT(TREE)             lacp_avl_get_num_nodes(&(TREE))
 
 /*****************************************************************************/
 /* Standard compare functions                                                */
 /*****************************************************************************/
-extern int lacp_compare_uint(void *, void *);
 extern int lacp_compare_port_handle(void *, void *);
 
 #endif /* __LACPD_AVL_H__ */
