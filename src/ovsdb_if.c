@@ -100,9 +100,6 @@ POOL(port_index, MAX_ENTRIES_IN_POOL);
 #define IS_VALID_ACTOR_PRI(p)      (((p) >= MIN_INTERFACE_OTHER_CONFIG_LACP_PORT_PRIORITY) && \
                                     ((p) <= MAX_INTERFACE_OTHER_CONFIG_LACP_PORT_PRIORITY))
 
-#define IS_VALID_AGGR_KEY(p)       (((p) >= MIN_INTERFACE_OTHER_CONFIG_LACP_AGGREGATION_KEY) && \
-                                    ((p) <= MAX_INTERFACE_OTHER_CONFIG_LACP_AGGREGATION_KEY))
-
 #define IS_VALID_SYS_PRIO(p)       (((p) >= MIN_SYSTEM_LACP_CONFIG_SYSTEM_PRIORITY) && \
                                     ((p) <= MAX_SYSTEM_LACP_CONFIG_SYSTEM_PRIORITY))
 
@@ -354,7 +351,7 @@ set_port_overrides(struct port_data *portp, struct iface_data *idp)
 }
 
 static void
-clear_port_overrides(struct port_data *portp, struct iface_data *idp)
+clear_port_overrides(struct iface_data *idp)
 {
     ML_event *event;
     struct MLt_lacp_api__set_lport_overrides *msg;
@@ -1308,7 +1305,7 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
                 db_clear_interface(idp);
                 set_interface_lag_eligibility(portp, idp, false);
                 idp->port_datap = NULL;
-                clear_port_overrides(portp, idp);
+                clear_port_overrides(idp);
                 rc++;
             }
         }
@@ -1393,7 +1390,7 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
                             shash_find_data(&all_interfaces, node->name);
                         if (idp) {
                             db_clear_interface(idp);
-                            clear_port_overrides(portp, idp);
+                            clear_port_overrides(idp);
                         }
                     }
                 }
@@ -2529,7 +2526,7 @@ end:
 } /* db_clear_lag_partner_info */
 
 void
-db_update_lag_partner_info(uint16_t lag_id, lacp_sport_params_t *param)
+db_update_lag_partner_info(uint16_t lag_id)
 {
     const struct ovsrec_port *prow;
     struct port_data *portp;

@@ -80,14 +80,8 @@
 #define RDEBUG(category, m...)  VLOG_DBG(m)
 #define RDBG(m...)              VLOG_DBG(m)
 
-#if 0
-#define RENTRY()     RDEBUG(DBG_F_ENTRY, "Entry: %s", __FUNCTION__);
-#define REXIT()      RDEBUG(DBG_F_ENTRY, "Exit: %s", __FUNCTION__);
-#define REXITS(s)    RDEBUG(DBG_F_ENTRY, "Exit: %s status=%d\n", __FUNCTION__, s);
-#else
 #define RENTRY()
 #define REXIT()
 #define REXITS(s)
-#endif
 
 #endif //__MLACP_DEBUG_H__

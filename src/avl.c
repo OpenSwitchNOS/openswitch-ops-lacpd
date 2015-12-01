@@ -473,56 +473,6 @@ lacp_avl_next(lacp_avl_node_t *node)
 
 } /*  lacp_avl_next */
 
-/**PROC+**********************************************************************/
-/* Name:       lacp_avl_prev                                                 */
-/*                                                                           */
-/* Purpose:   Find previous node in the AVL tree                             */
-/*                                                                           */
-/* Returns:   A pointer to the previous node in the tree                     */
-/*                                                                           */
-/* Params:    IN     node              - a pointer to the current node in    */
-/*                                       the tree                            */
-/*                                                                           */
-/* Operation: If we have a left-son then the previous node is the right-most */
-/*            son of this. Otherwise, look for a node of whom we are in the  */
-/*            left subtree and return that.                                  */
-/*                                                                           */
-/**PROC-**********************************************************************/
-void *
-lacp_avl_prev(lacp_avl_node_t *node)
-{
-    /***************************************************************************/
-    /* find previous node in tree                                              */
-    /***************************************************************************/
-
-    assert(LACP_AVL_IN_TREE(*node));
-
-    if (node->left != NULL) {
-        /*************************************************************************/
-        /* previous node is right-most node in left subtree                      */
-        /*************************************************************************/
-        node = node->left;
-        while (node->right != NULL) {
-            node = node->right;
-        }
-
-    } else {
-        /*************************************************************************/
-        /* no left-son, so find a node of which we are in the right subtree      */
-        /*************************************************************************/
-        while (node != NULL) {
-            if ((node->parent == NULL) ||
-                (node->parent->right == node)) {
-                node = node->parent;
-                break;
-            }
-            node = node->parent;
-        }
-    }
-
-    return ((node != NULL) ? node->self : NULL);
-
-} /*  lacp_avl_prev */
 
 /**PROC+**********************************************************************/
 /* Name:       lacp_avl_balance_tree                                         */
@@ -998,55 +948,10 @@ lacp_avl_find_or_find_next(lacp_avl_tree_t *tree, void *key, int not_equal)
 
 } /*  lacp_avl_find_or_find_next */
 
-/**PROC+**********************************************************************/
-/* Name:       lacp_avl_get_num_nodes                                        */
-/*                                                                           */
-/* Purpose:   Get the count of the nodes in this tree.                       */
-/*                                                                           */
-/* Returns:   The number of nodes in the tree                                */
-/*                                                                           */
-/* Params:    IN     tree         - a pointer to the AVL tree                */
-/*                                                                           */
-/**PROC-**********************************************************************/
-unsigned int
-lacp_avl_get_num_nodes(lacp_avl_tree_t *tree)
-{
-    return (tree->num_nodes);
-}
 
 /*****************************************************************************/
 /* Standard compare functions                                                */
 /*****************************************************************************/
-
-/**PROC+**********************************************************************/
-/* Name:      lacp_compare_uint                                              */
-/*                                                                           */
-/* Purpose:   Standard function for comparing u_ints                         */
-/*                                                                           */
-/* Returns:   -1 if aa < bb                                                  */
-/*             0 if aa = bb                                                  */
-/*             1 if aa > bb                                                  */
-/*                                                                           */
-/* Params:    IN  aa                                                         */
-/*            IN  bb                                                         */
-/*                                                                           */
-/**PROC-**********************************************************************/
-int
-lacp_compare_uint(void *aa, void *bb)
-{
-    int ret_val;
-
-    if (*(u_int *)aa < *(u_int *)bb) {
-        ret_val = -1;
-    } else if (*(u_int *)aa > *(u_int *)bb) {
-        ret_val = 1;
-    } else {
-        ret_val = 0;
-    }
-
-    return (ret_val);
-
-} /* lacp_compare_uint */
 
 
 /**PROC+**********************************************************************/
