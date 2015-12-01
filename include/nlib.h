@@ -66,7 +66,6 @@ extern struct NList *n_list_nth(struct NList *list, int n);
 extern int n_list_length(struct NList *list);
 
 #define N_LIST_NEXT(list) (((struct NList *) list)->next)
-#define N_LIST_PREV(list) (((struct NList *) list)->prev)
 #define N_LIST_ELEMENT(list) (((struct NList *) list)->data)
 
 /* nlist iterator: do *not* modify the list while inside!. Use like this:
