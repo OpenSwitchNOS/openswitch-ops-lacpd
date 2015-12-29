@@ -25,6 +25,24 @@ import pytest
 from opsvsi.docker import *
 from opsvsi.opsvsitest import *
 
+from lib_test import timed_compare
+from lib_test import sw_set_intf_user_config
+from lib_test import sw_clear_user_config
+from lib_test import sw_set_intf_pm_info
+from lib_test import set_port_parameter
+from lib_test import sw_get_intf_state
+from lib_test import sw_get_port_state
+from lib_test import sw_create_bond
+from lib_test import verify_compare_value
+from lib_test import verify_compare_tuple
+from lib_test import verify_compare_tuple_negate
+from lib_test import verify_compare_complex
+from lib_test import verify_intf_in_bond
+from lib_test import verify_intf_not_in_bond
+from lib_test import verify_intf_status
+from lib_test import verify_intf_field_absent
+from lib_test import verify_intf_lacp_status
+
 OVS_VSCTL = "/usr/bin/ovs-vsctl "
 
 # Test case configuration.
@@ -51,46 +69,11 @@ sw_40G_intf_end = 54
 n_40G_link2 = 6
 sw_40G_intf = [str(i) for i in irange(sw_40G_intf_start, sw_40G_intf_end)]
 
-# This method calls a function to retrieve data, then calls another function
-# to compare the data to the expected value(s). If it fails, it sleeps for
-# half a second, then retries, up to a specified retry limit (default 20 = 10
-# seconds). It returns a tuple of the test status and the actual results.
-def timed_compare(data_func, params, compare_func, expected_results, retries = 20):
-    while retries != 0:
-        actual_results = data_func(params)
-        result = compare_func(actual_results, expected_results, retries == 1)
-        if result == True:
-            return True, actual_results
-        time.sleep(0.5)
-        retries -= 1
-    return False, actual_results
-
-# Set user_config for an Interface.
-def sw_set_intf_user_config(sw, interface, config):
-    c = OVS_VSCTL + "set interface " + str(interface)
-    for s in config:
-        c += " user_config:" + s
-    debug(c)
-    return sw.ovscmd(c)
-
-
-# Clear user_config for an Interface.
-def sw_clear_user_config(sw, interface):
-    c = OVS_VSCTL + "clear interface " + str(interface) + " user_config"
-    debug(c)
-    return sw.ovscmd(c)
 
 # Parse the lacp_status:*_state string
 def parse_lacp_state(state):
     return dict(map(lambda l:map(lambda j:j.strip(),l), map(lambda i: i.split(':'), state.split(','))))
 
-# Set pm_info for an Interface.
-def sw_set_intf_pm_info(sw, interface, config):
-    c = OVS_VSCTL + "set interface " + str(interface)
-    for s in config:
-        c += " pm_info:" + s
-    debug(c)
-    return sw.ovscmd(c)
 
 # Set open_vsw_lacp_config parameter(s)
 def set_open_vsw_lacp_config(sw, config):
@@ -100,19 +83,13 @@ def set_open_vsw_lacp_config(sw, config):
     debug(c)
     return sw.ovscmd(c)
 
+
 def sys_open_vsw_lacp_config_clear(sw):
     c = OVS_VSCTL + "remove system . lacp_config lacp-system-id " + \
         "lacp_config lacp-system-priority"
     debug(c)
     sw.ovscmd(c)
 
-# Set open_vsw_lacp_config parameter(s)
-def set_port_parameter(sw, port, config):
-    c = OVS_VSCTL + "set port " + str(port)
-    for s in config:
-        c += ' %s' % s
-    debug(c)
-    return sw.ovscmd(c)
 
 # Set interface:other_config parameter(s)
 def set_intf_other_config(sw, intf, config):
@@ -121,6 +98,7 @@ def set_intf_other_config(sw, intf, config):
         c += ' other_config:%s' % s
     debug(c)
     return sw.ovscmd(c)
+
 
 # Get interface:other_config parameter(s)
 def get_intf_other_config(sw, intf, params):
@@ -133,6 +111,7 @@ def get_intf_other_config(sw, intf, params):
     debug(out)
     return out
 
+
 # Delete interface other config parameter(s)
 def del_intf_other_config(sw, intf, params):
     c = OVS_VSCTL + "remove interface " + str(intf)
@@ -141,43 +120,13 @@ def del_intf_other_config(sw, intf, params):
     debug(c)
     return sw.ovscmd(c)
 
+
 # Simulate the link state on an Interface
 def simulate_link_state(sw, interface, link_state="up"):
     info("Setting the link state of interface " + interface + " to " + link_state + "\n")
     c = OVS_VSCTL + "set interface " + str(interface) + " link_state=" + link_state
     debug(c)
     return sw.ovscmd(c)
-
-
-# Get the values of a set of columns from Interface table.
-# This function returns a list of values if 2 or more
-# fields are requested, and returns a single value (no list)
-# if only 1 field is requested.
-def sw_get_intf_state(params):
-    c = OVS_VSCTL + "get interface " + str(params[1])
-    for f in params[2]:
-        c += " " + f
-    out = params[0].ovscmd(c).splitlines()
-    debug(out)
-    return out
-
-def sw_get_port_state(params):
-    c = OVS_VSCTL + "get port " + str(params[1])
-    for f in params[2]:
-        c += " " + f
-    out = params[0].ovscmd(c).splitlines()
-    if len(out) == 1:
-        out = out[0]
-    debug(out)
-    return out
-
-# Create a bond/lag/trunk in the OVS-DB.
-def sw_create_bond(s1, bond_name, intf_list, lacp_mode="off"):
-    info("Creating LAG " + bond_name + " with interfaces: " + str(intf_list) + "\n")
-    c = OVS_VSCTL + "add-bond bridge_normal " + bond_name + " " + " ".join(map(str, intf_list))
-    c += " -- set port " + bond_name + " lacp=" + lacp_mode
-    debug(c)
-    return s1.ovscmd(c)
 
 
 # Delete a bond/lag/trunk from OVS-DB.
@@ -264,90 +213,12 @@ def remove_intf_list_from_bond(sw, bond_name, intf_list):
         remove_intf_from_bond(sw, bond_name, intf)
 
 
-def verify_compare_value(actual, expected, final):
-    if actual != expected:
-        return False
-    return True
-
-def verify_compare_tuple(actual, expected, final):
-    if len(actual) != len(expected):
-        return False
-    if actual != expected:
-        return False
-    return True
-
-def verify_compare_tuple_negate(actual, expected, final):
-    if len(actual) != len(expected):
-        return False
-    for i in range(0, len(expected)):
-        if actual[i] == expected[i]:
-            return False
-    return True
-
-def verify_compare_complex(actual, expected, final):
-    attrs = []
-    for attr in expected:
-        attrs.append(attr)
-    if len(actual) != len(expected):
-        return False
-    for i in range(0, len(attrs)):
-        if actual[i] != expected[attrs[i]]:
-            return False
-    return True
-
-# Verify that an Interface is part of a bond.
-def verify_intf_in_bond(sw, intf, msg):
-    result = timed_compare(sw_get_intf_state,
-                          (sw, intf, ['hw_bond_config:rx_enabled', \
-                                      'hw_bond_config:tx_enabled']),
-                          verify_compare_tuple, ['true', 'true'])
-    assert result == (True, ["true", "true"]), msg
-
-
-# Verify that an Interface is not part of any bond.
-def verify_intf_not_in_bond(sw, intf, msg):
-    result = timed_compare(sw_get_intf_state,
-                           (sw, intf, ['hw_bond_config:rx_enabled', \
-                                       'hw_bond_config:tx_enabled']),
-                           verify_compare_tuple_negate, ['true', 'true'])
-    assert result[0] == True and result[1][0] != 'true' and result[1][1] != 'true', msg
-
-# Verify Interface status
-def verify_intf_status(sw, intf, column_name, value, msg=''):
-    result = timed_compare(sw_get_intf_state,
-                           (sw, intf, [column_name]),
-                           verify_compare_tuple, [value])
-    assert result == (True, [value]), msg
-
-def verify_intf_field_absent(sw, intf, field, msg):
-    retries = 20
-    while  retries != 0:
-        result = sw_get_intf_state((sw, intf, [field]))
-        if "no key" in result[0]:
-            return
-        time.sleep(0.5)
-        retries -= 1
-    assert "no key" in result, msg
-
-def verify_intf_lacp_status(sw, intf, verify_values, context=''):
-    request = []
-    attrs = []
-    for attr in verify_values:
-        request.append('lacp_status:' + attr)
-        attrs.append(attr)
-    result = timed_compare(sw_get_intf_state,
-                           (sw, intf, request),
-                           verify_compare_complex, verify_values)
-    field_vals = result[1]
-    for i in range(0, len(attrs)):
-        assert field_vals[i] == verify_values[attrs[i]], context + ": invalid value for " + attrs[i] + ", expected " + verify_values[attrs[i]] + ", got " + field_vals[i]
-
-
 def verify_port_lacp_status(sw, lag, value, msg=''):
     result = timed_compare(sw_get_port_state,
                            (sw, lag, ["lacp_status"]),
                            verify_compare_value, value)
     assert result == (True, value), msg
+
 
 def lacpd_switch_pre_setup(sw):
 
