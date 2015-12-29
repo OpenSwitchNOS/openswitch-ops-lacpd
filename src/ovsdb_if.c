@@ -1209,25 +1209,43 @@ static void
 set_interface_lag_eligibility(struct port_data *portp, struct iface_data *idp,
                               bool eligible)
 {
+    bool fallback_ab = false;
+    const struct ovsrec_interface *row =
+          shash_find_data(&portp->eligible_member_ifs, idp->name);
+
     if (eligible == idp->lag_eligible) {
         return;
     }
 
     if (portp->lacp_mode == PORT_LACP_OFF) {
         /* Static LAG configuration in hardware. */
-        update_interface_hw_bond_config_map_entry(
-            idp,
-            INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
-            eligible == true
-            ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
-            : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+        fallback_ab = smap_get_bool(&(row->other_config),
+                                    PORT_OTHER_CONFIG_LACP_FALLBACK,
+                                    false);
+        if (fallback_ab) {
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
+                eligible ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
+                         : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
 
-        update_interface_hw_bond_config_map_entry(
-            idp,
-            INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
-            eligible == true
-            ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
-            : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
+                eligible ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
+                         : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+        }
+        else {
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
+                INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
+                INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+        }
     } else {
         /* NOTE: For Ports in dynamic LACP mode, eligible interfaces
          * mean the LACP is run on the interfaces.  LACP state machine
@@ -1251,11 +1269,26 @@ set_interface_lag_eligibility(struct port_data *portp, struct iface_data *idp,
                 INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
                 INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
         }
+        else {
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
+                INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE);
+
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
+                INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE);
+        }
         send_config_lport_msg(idp);
     }
 
+     fallback_ab = smap_get_bool(&(row->other_config),
+                                 PORT_OTHER_CONFIG_LACP_FALLBACK,
+                                 false);
+
     /* update eligible LAG member list. */
-    if (eligible) {
+    if (eligible && fallback_ab) {
         shash_add(&portp->eligible_member_ifs, idp->name, (void *)idp);
     } else {
         shash_find_and_delete(&portp->eligible_member_ifs, idp->name);
