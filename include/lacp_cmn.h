@@ -37,6 +37,12 @@ typedef unsigned short        macaddr_3_t[MAC_SHORTADDR_SIZE];
 /* MAC address in 6 elements (bytes)  */
 typedef unsigned char         macaddr_6_t[MAC_BYTEADDR_SIZE];
 
+/* Aggregation Key defines */
+#define AGG_KEY_MAX_LENGTH  (6)
+
+/* LAG Port Name prefix */
+#define LAG_PORT_NAME_PREFIX_LENGTH (3)
+
 
 /******************************************************************************************/
 /**                             MsgLib related                                           **/

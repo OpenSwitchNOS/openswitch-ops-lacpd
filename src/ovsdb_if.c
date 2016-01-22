@@ -1460,8 +1460,11 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
                  * so we'll simply initialize them with default values.
                  * Just use lag_id for actor_key during creation.
                  */
+                char agg_key[AGG_KEY_MAX_LENGTH];
+                snprintf(agg_key, AGG_KEY_MAX_LENGTH, "%s",
+                         portp->name + LAG_PORT_NAME_PREFIX_LENGTH);
                 send_config_lag_msg(portp->lag_id,
-                                    portp->lag_id, /* actor key*/
+                                    atoi(agg_key),
                                     PM_LPORT_INVALID);
             } else {
                 VLOG_ERR("Failed to allocate LAGID for port %s!", portp->name);
