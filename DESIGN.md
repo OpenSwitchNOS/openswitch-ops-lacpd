@@ -14,35 +14,66 @@ N/A
 Relationships to external OpenSwitch entities
 ---------------------------------------------
 ```ditaa
-+-------------+      +-------------+       +----+
-|             +------>L2 interfaces+-------+PEER|
-|             |      +-------------+       +----+
-| ops-lacpd   |
-|             |
-|             |
-|             |
-|             |       +--------------+
-|             +------->              |
-+-------------+       |              |
-                      |   database   |
-                      |              |
-+-------------+       |              |
-|             +------->              |
-|             |       |              |
-|             |       +--------------+
-|  switchd    |
-|             |       +--------+
-|             +------->        |
-|             |       | SWITCH |
-+-------------+       |        |
-                      +--------+
-
++----------------------+     +---------------------+
+|                      |     |                     |
+|                      |     |                     |
+|        ops-cli       |     |      ops-restd      |
+|                      |     |                     |
+|                      |     |                     |
++-----------^----------+     +----------^----------+
+            |                           |
+            |                           |
+            |                           |
+            |                           |
++-----------v---------------------------v----------+
+|                                                  |
+|                       OVSDB                      |
+|                                                  |
++-----------^---------------------------^----------+
+            |                           |
+            |                           |
+            |                           |
+            |                           |
++-----------v----------+     +----------v----------+
+|                      |     |                     |
+|                      |     |                     |
+|       ops-lacpd      |     |       switchd       |
+|                      |     |                     |
+|                      |     |                     |
++----^------------^----+     +----------+----------+
+     |            |                     |
+     |            |                     |
+     |            |                     |
++----v----+  +----v----+                |
+|         |  |         |                |
+|         |  |         |                |
+|   L2    |  | Bonding |                |
+|Interfaces  | Driver  |                |
+|         |  |         |                |
+|         |  |         |                |
++----^----+  +---------+                |
+     |                                  |
++---------------------------------------v----------+
+|    |                                             |
+|    |                 Hardware                    |
+|    |                                             |
++--------------------------------------------------+
+     |
++----v----+
+|         |
+|  Peer   |
+| Device  |
+|         |
+|         |
++---------+
 ```
-The ops-lacpd process monitors the Port and Interface table in the database. As the configuration and state information for the ports and interfaces are changed, ops-lacpd examines the data to determine if there are new LAGs being defined in the configuration and if state information for interfaces has changed. The ops-lacpd process uses this information to configure static LAG membership and update the LACP protocol state machines.
+User Interface daemons, ops-cli and ops-restd, configure the Port and interface tables in OVSDB to set dynamic or static LAGs.  The ops-lacpd process monitors those tables in the database. As the configuration and state information for the ports and interfaces are changed, ops-lacpd examines the data to determine if there are new LAGs being defined in the configuration and if state information for interfaces has changed. The ops-lacpd process uses this information to configure LAG membership and update the LACP protocol state machines.
 
 The ops-lacpd process registers for LACP protocol packets on all L2 interfaces configured for LACP, and sends and receives state information to the peer LACP instance through the interfaces.
 
 When the state information maintained by ops-lacpd changes, it updates the information in the database. Some of this information is strictly status, but this also includes hardware configuration, which is used by switchd to configure the switch.
+
+Additionally, ops-lacpd configures the bonding driver to create bond interfaces using the Linux virtual interfaces correspondent to the physical interfaces that are members of the LAG to mimic the hardware aggregation.
 
 OVSDB-Schema
 ------------
