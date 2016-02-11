@@ -52,6 +52,7 @@
 #include "lacp.h"
 #include "mlacp_fproto.h"
 #include "mvlan_sport.h"
+#include "linux_bond.h"
 
 #include <unixctl.h>
 #include <dynamic-string.h>
@@ -138,6 +139,7 @@ struct port_data {
     struct shash        cfg_member_ifs;     /*!< Configured member interfaces */
     struct shash        eligible_member_ifs;/*!< Interfaces eligible to form a LAG */
     struct shash        participant_ifs;    /*!< Interfaces currently in LAG */
+    struct shash        bonding_ifs;        /*!< Interfaces currently in bonding driver */
     enum ovsrec_port_lacp_e lacp_mode;      /*!< port's LACP mode */
     unsigned int        lag_member_speed;   /*!< link speed of LAG members */
     const struct ovsrec_port *cfg;          /*!< Port's idl entry */
@@ -187,6 +189,7 @@ static char *lacp_mode_str(enum ovsrec_port_lacp_e mode);
 static void db_clear_interface(struct iface_data *idp);
 static void db_update_port_status(struct port_data *portp);
 void db_clear_lag_partner_info_port(struct port_data *portp);
+void update_bond_slaves(struct port_data *portp);
 
 /**********************************************************************/
 /*                               UTILS                                */
@@ -299,6 +302,23 @@ find_iface_data_by_index(int index)
     return NULL;
 } /* find_iface_data_by_index */
 
+
+struct iface_data *
+find_iface_data_by_name(char* name)
+{
+    struct iface_data *idp;
+    struct shash_node *sh_node;
+
+    SHASH_FOR_EACH(sh_node, &all_interfaces) {
+        idp = sh_node->data;
+        if (idp) {
+            if (!strcmp(idp->name, name)) {
+                 return idp;
+            }
+        }
+    }
+    return NULL;
+} /* find_iface_data_by_name */
 
 /**********************************************************************/
 /*              Configuration Message Sending Utilities               */
@@ -835,6 +855,9 @@ lacpd_ovsdb_if_init(const char *db_path)
     ovsdb_idl_add_column(idl, &ovsrec_interface_col_lacp_status);
     ovsdb_idl_omit_alert(idl, &ovsrec_interface_col_lacp_status);
     ovsdb_idl_add_column(idl, &ovsrec_interface_col_other_config);
+    ovsdb_idl_add_column(idl, &ovsrec_interface_col_user_config);
+    ovsdb_idl_omit_alert(idl, &ovsrec_interface_col_user_config);
+
 
     /* Initialize LAG ID pool. */
     /* OPS_TODO: read # of LAGs from somewhere? */
@@ -1195,6 +1218,9 @@ update_interface_hw_bond_config_map_entry(struct iface_data *idp,
     return 1;
 } /* update_interface_hw_bond_config_map_entry */
 
+
+static bool do_not_remove = false;
+
 /**
  * Common function to set interface's LAG eligibility status for all LAG types.
  * Depending on the LAG type, this function either updates the DB by writing
@@ -1257,8 +1283,22 @@ set_interface_lag_eligibility(struct port_data *portp, struct iface_data *idp,
     /* update eligible LAG member list. */
     if (eligible) {
         shash_add(&portp->eligible_member_ifs, idp->name, (void *)idp);
+        VLOG_INFO("bond: Elegible intfs: %d", (int)shash_count(&(portp->eligible_member_ifs)));
+        if(!strncmp(portp->name, "lag", 3))
+        {
+            do_not_remove = true;
+            update_bond_slaves(portp);
+            sleep(5);
+            do_not_remove = false;
+        }
     } else {
         shash_find_and_delete(&portp->eligible_member_ifs, idp->name);
+
+        if(!strncmp(portp->name, "lag", 3) && !do_not_remove)
+        {
+            VLOG_INFO("REMOVING SLAVE %s FROM PORT %s", idp->name, portp->name);
+            //remove_slave_from_bond(portp->name, idp->name);
+        }
     }
     idp->lag_eligible = eligible;
 
@@ -1310,6 +1350,7 @@ update_interface_lag_eligibility(struct iface_data *idp)
 
     if (!shash_find_data(&portp->cfg_member_ifs, idp->name)) {
         /* Interface must be configured as part of the Port first. */
+        VLOG_INFO("                    SET TO FALSE IN LINK NAME");
         new_eligible = false;
 
     } else if (LACP_ENABLED_ON_PORT(portp->lacp_mode)) {
@@ -1321,11 +1362,13 @@ update_interface_lag_eligibility(struct iface_data *idp)
         /* For static LAGs, interface eligibility is based on
          * additional link status. */
         if (INTERFACE_LINK_STATE_UP != idp->link_state) {
+            VLOG_INFO("                    SET TO FALSE IN LINK STATE");
             new_eligible = false;
         }
 
         if (INTERFACE_DUPLEX_FULL != idp->duplex) {
             new_eligible = false;
+            VLOG_INFO("                    SET TO FALSE IN DUPLEX");
         }
 
         if (shash_count(&portp->eligible_member_ifs) == 0 && new_eligible) {
@@ -1335,6 +1378,7 @@ update_interface_lag_eligibility(struct iface_data *idp)
 
         if (portp->lag_member_speed != idp->link_speed) {
             new_eligible = false;
+            VLOG_INFO("                    SET TO FALSE IN LINK SPEED");
         }
     }
 
@@ -1343,6 +1387,7 @@ update_interface_lag_eligibility(struct iface_data *idp)
              old_eligible, new_eligible);
 
     if (old_eligible != new_eligible) {
+        VLOG_INFO("CALLING set_interface_lag_eligibility FROM  update_interface_lag_eligibility");
         set_interface_lag_eligibility(portp, idp, new_eligible);
         rc++;
     }
@@ -1403,6 +1448,7 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
                 VLOG_DBG("Found a deleted interface %s", node->name);
                 shash_delete(&portp->cfg_member_ifs, node);
                 db_clear_interface(idp);
+                VLOG_INFO("CALLING set_interface_lag_eligibility FROM  handle_port_config");
                 set_interface_lag_eligibility(portp, idp, false);
                 idp->port_datap = NULL;
                 clear_port_overrides(idp);
@@ -1432,6 +1478,7 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
         SHASH_FOR_EACH_SAFE(node, next, &portp->eligible_member_ifs) {
             struct iface_data *idp =
                 shash_find_data(&all_interfaces, node->name);
+            VLOG_INFO("CALLING set_interface_lag_eligibility FROM  handle_port_config 2");
             set_interface_lag_eligibility(portp, idp, false);
         }
 
@@ -1634,6 +1681,7 @@ del_old_port(struct shash_node *sh_node)
                          idp->name, portp->name);
 
                 shash_delete(&portp->cfg_member_ifs, node);
+                VLOG_INFO("CALLING set_interface_lag_eligibility FROM  del_old_port");
                 set_interface_lag_eligibility(portp, idp, false);
                 db_clear_interface(idp);
                 idp->port_datap = NULL;
@@ -1674,6 +1722,7 @@ add_new_port(const struct ovsrec_port *port_row)
         shash_init(&portp->cfg_member_ifs);
         shash_init(&portp->eligible_member_ifs);
         shash_init(&portp->participant_ifs);
+        shash_init(&portp->bonding_ifs);
 
         for (i = 0; i < port_row->n_interfaces; i++) {
             struct ovsrec_interface *intf;
@@ -1711,6 +1760,8 @@ update_port_cache(void)
     struct shash_node *sh_node, *sh_next;
     int rc = 0;
 
+    VLOG_INFO("update_port_cache called ");
+
     /* Collect all the ports in the DB. */
     shash_init(&sh_idl_ports);
     OVSREC_PORT_FOR_EACH(row, idl) {
@@ -1723,7 +1774,15 @@ update_port_cache(void)
     SHASH_FOR_EACH_SAFE(sh_node, sh_next, &all_ports) {
         struct port_data *portp = shash_find_data(&sh_idl_ports, sh_node->name);
         if (!portp) {
-            VLOG_DBG("Found a deleted port %s", sh_node->name);
+            VLOG_INFO("Found a deleted port %s", sh_node->name);
+
+            /* Check if port's name begins with "lag" to delete Linux bond*/
+            if(!strncmp(sh_node->name, "lag", 3))
+            {
+                VLOG_INFO("bond: Deleting bond %s, ", sh_node->name);
+                delete_linux_bond(sh_node->name);
+            }
+
             del_old_port(sh_node);
             rc++;
         }
@@ -1733,8 +1792,17 @@ update_port_cache(void)
     SHASH_FOR_EACH(sh_node, &sh_idl_ports) {
         struct port_data *portp = shash_find_data(&all_ports, sh_node->name);
         if (!portp) {
-            VLOG_DBG("Found an added port %s", sh_node->name);
+            VLOG_INFO("Found an added port %s", sh_node->name);
             add_new_port(sh_node->data);
+
+            VLOG_INFO("Found an added port %s", sh_node->name);
+
+            /* Check if port's name begins with "lag" to create Linux bond*/
+            if(!strncmp(sh_node->name, "lag", 3))
+            {
+                create_linux_bond(sh_node->name);
+                set_linux_bond_up(sh_node->name);
+            }
         }
     }
 
@@ -1755,6 +1823,16 @@ update_port_cache(void)
             if (handle_port_config(row, portp)) {
                 rc++;
             }
+
+            // if(!strncmp(portp->name, "lag", 3))
+           // {
+                /* Remove all previous slaves */
+                //remove_all_slaves(portp->name);
+                //update_bond_slaves(portp);
+
+                /* TODO: put in the right place*/
+                //set_linux_bond_up(portp->name);
+            //}
         }
     }
 
@@ -1827,6 +1905,8 @@ lacpd_reconfigure(void)
     int rc = 0;
     unsigned int new_idl_seqno = ovsdb_idl_get_seqno(idl);
     const struct ovsrec_system *sys = NULL;
+
+    VLOG_INFO("lacpd_reconfigure called ");
 
     if (new_idl_seqno == idl_seqno) {
         /* There was no change in the DB. */
@@ -2213,6 +2293,8 @@ lacpd_run(void)
     struct ovsdb_idl_txn *txn;
 
     OVSDB_LOCK;
+
+    VLOG_INFO("lacpd_run called ");
 
     /* Process a batch of messages from OVSDB. */
     ovsdb_idl_run(idl);
@@ -2681,6 +2763,66 @@ end:
     OVSDB_UNLOCK;
 
 } /* db_update_lag_partner_info */
+
+
+/**
+ * Updates the list of slaves of one LAG.
+ * Goes through the list of eligible interfaces adding
+ * the ones that have not been added to the bond yet.
+ *
+ * @param portp is the port structure of the LAG to
+ * 		  to be updated.
+ *
+ */
+void update_bond_slaves(struct port_data *portp)
+{
+    struct shash_node *node;
+    struct iface_data *idp = NULL;
+    const struct ovsrec_interface *ifrow = NULL;
+
+    VLOG_INFO("bond: update_bond_slaves");
+    VLOG_INFO("bond: cfg_member_ifs: %d", (int)shash_count(&(portp->cfg_member_ifs)));
+    VLOG_INFO("bond: eligible_member_ifs: %d", (int)shash_count(&(portp-> eligible_member_ifs)));
+    VLOG_INFO("bond: participant_ifs: %d", (int)shash_count(&(portp->participant_ifs)));
+    VLOG_INFO("bond: bonding_ifs: %d", (int)shash_count(&(portp->bonding_ifs)));
+
+    SHASH_FOR_EACH(node, &portp->eligible_member_ifs)
+    {
+        VLOG_INFO("bond: %s interface to be added to bond", node->name);
+
+        /* If the interfaces is already added, then continue with the next one. */
+		if(shash_find(&(portp-> bonding_ifs), node->name)){
+			 VLOG_INFO("bond: %s slave already in bonding_ifs, continuing", node->name);
+			 continue;
+		}
+
+        bool set_interface_up = false;
+        /* get interface data */
+        idp = find_iface_data_by_name(node->name);
+        ifrow = idp->cfg;
+
+        /* Get interface user config status ("up" or "down") */
+        const char *state_value = smap_get(&ifrow->user_config,INTERFACE_USER_CONFIG_MAP_ADMIN);
+
+        /* The interface must be down in order to add it to the Linux bond*/
+        if(!strcmp(state_value, "up"))
+        {
+            VLOG_INFO("bond: Interface is up, putting it down");
+            set_slave_interface_down(node->name);
+            set_interface_up = true;
+        }
+        VLOG_INFO("bond: Eligible member for lag %s: port %s, admin state is %s",portp->name, node->name, state_value);
+
+        add_slave_to_bond(portp->name, node->name);
+        shash_add(&portp->bonding_ifs, node->name, (void *)idp);
+
+        /* Set the interface back to up if it was initially up. */
+        if(set_interface_up)
+        {
+            set_slave_interface_up(node->name);
+        }
+    }
+}
 
 /**********************************************************************/
 /*                               DEBUG                                */
