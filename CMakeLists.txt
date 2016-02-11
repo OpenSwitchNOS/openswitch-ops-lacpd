@@ -45,7 +45,7 @@ set (SOURCES ${SRC_DIR}/avl.c ${SRC_DIR}/dlist.c ${SRC_DIR}/lacpd.c
              ${SRC_DIR}/mlacp_recv.c ${SRC_DIR}/mlacp_send.c ${SRC_DIR}/mqueue.c
              ${SRC_DIR}/mux_fsm.c ${SRC_DIR}/mvlan_lacp.c ${SRC_DIR}/mvlan_sport.c
              ${SRC_DIR}/ovsdb_if.c ${SRC_DIR}/periodic_tx_fsm.c ${SRC_DIR}/receive_fsm.c
-             ${SRC_DIR}/selection.c ${SRC_DIR}/stubs.c ${SRC_DIR}/utils.c)
+             ${SRC_DIR}/selection.c ${SRC_DIR}/stubs.c ${SRC_DIR}/utils.c ${SRC_DIR}/linux_bond.c)
 
 # Rules to build ops-lacpd
 add_executable (${OPSLACPD} ${SOURCES})

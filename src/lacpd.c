@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2015 Hewlett Packard Enterprise Development LP
+ * (c) Copyright 2015-2016 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -56,6 +56,7 @@
 #include "lacp.h"
 #include "mlacp_fproto.h"
 #include "lacp_ops_if.h"
+#include "linux_bond.h"
 
 VLOG_DEFINE_THIS_MODULE(lacpd);
 
@@ -126,6 +127,8 @@ lacpd_init(const char *db_path, struct unixctl_server *appctl)
     sigemptyset(&sigset);
     sigfillset(&sigset);
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
+
+    netlink_socket_open();
 
     /* Spawn off the main LACP protocol thread. */
     rc = pthread_create(&lacpd_thread,
