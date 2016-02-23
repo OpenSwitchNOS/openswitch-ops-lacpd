@@ -14,66 +14,69 @@ N/A
 Relationships to external OpenSwitch entities
 ---------------------------------------------
 ```ditaa
-+----------------------+     +---------------------+
-|                      |     |                     |
-|                      |     |                     |
-|        ops-cli       |     |      ops-restd      |
-|                      |     |                     |
-|                      |     |                     |
-+-----------^----------+     +----------^----------+
-            |                           |
-            |                           |
-            |                           |
-            |                           |
-+-----------v---------------------------v----------+
-|                                                  |
-|                       OVSDB                      |
-|                                                  |
-+-----------^---------------------------^----------+
-            |                           |
-            |                           |
-            |                           |
-            |                           |
-+-----------v----------+     +----------v----------+
-|                      |     |                     |
-|                      |     |                     |
-|       ops-lacpd      |     |       switchd       |
-|                      |     |                     |
-|                      |     |                     |
-+----^------------^----+     +----------+----------+
-     |            |                     |
-     |            |                     |
-     |            |                     |
-+----v----+  +----v----+                |
-|         |  |         |                |
-|         |  |         |                |
-|   L2    |  | Bonding |                |
-|Interfaces  | Driver  |                |
-|         |  |         |                |
-|         |  |         |                |
-+----^----+  +---------+                |
-     |                                  |
-+---------------------------------------v----------+
-|    |                                             |
-|    |                 Hardware                    |
-|    |                                             |
-+--------------------------------------------------+
-     |
-+----v----+
-|         |
-|  Peer   |
-| Device  |
-|         |
-|         |
-+---------+
++----------------------+                            +---------------------+
+|                      |                            |                     |
+|                      |                            |                     |
+|        ops-cli       |                            |      ops-restd      |
+|                      |                            |                     |
+|                      |                            |                     |
++-----------^----------+                            +----------^----------+
+            |                                                  |
+            |                                                  |
+            |                                                  |
+            |                                                  |
++-----------v--------------------------------------------------v----------+
+|                                                                         |
+|                                   OVSDB                                 |
+|                                                                         |
++-----------^-------------------------^------------------------^----------+
+            |                         |                        |
+            |                         |                        |
+            |                         |                        |
+            |                         |                        |
++-----------v----------+  +-----------+----------+  +----------v----------+
+|                      |  |                      |  |                     |
+|                      |  |                      |  |                     |
+|       ops-portd      |  |       ops-lacpd      |  |       switchd       |
+|                      |  |                      |  |                     |
+|                      |  |                      |  |                     |
++----+------------^----+  +----^-----------------+  +---------+-----------+
+     |            |            |                              | User Space
++----------------------------------------------------------------------------+
+     |            |            |                              | Kernel Space
++----v----+       |       +----v-----+                        |
+|         |       |       |          |                        |
+|         |       |       |          |                        |
+| Bonding |       |       |  Linux   |                        |
+| Driver  |       +------->Interfaces|                        |
+|         |               |          |                        |
+|         |               |          |                        |
++---------+               +----^-----+                        |
+                               |                              | Kernel Space
++----------------------------------------------------------------------------+
+                               |                              | Hardware
+                          +-----------------------------------v----------+
+                          |    |                                         |
+                          |    |             Hardware                    |
+                          |    |                                         |
+                          +----------------------------------------------+
+                               |
+                          +----v----+
+                          |         |
+                          |  Peer   |
+                          | Device  |
+                          |         |
+                          |         |
+                          +---------+
+
 ```
-User Interface daemons, ops-cli and ops-restd, configure the Port and interface tables in OVSDB to set dynamic or static LAGs.  The ops-lacpd process monitors those tables in the database. As the configuration and state information for the ports and interfaces are changed, ops-lacpd examines the data to determine if there are new LAGs being defined in the configuration and if state information for interfaces has changed. The ops-lacpd process uses this information to configure LAG membership and update the LACP protocol state machines.
+User Interface daemons, ops-cli and ops-restd, configure the Port and interface tables in OVSDB to set dynamic or static LAGs.  The ops-lacpd process monitors those tables in the database. As the configuration and state information for the ports and interfaces changed, ops-lacpd examines the data to determine if there are new LAGs being defined in the configuration and if state information for interfaces has changed. The ops-lacpd process uses this information to configure LAG membership and update the LACP protocol state machines.
 
 The ops-lacpd process registers for LACP protocol packets on all L2 interfaces configured for LACP, and sends and receives state information to the peer LACP instance through the interfaces.
 
 When the state information maintained by ops-lacpd changes, it updates the information in the database. Some of this information is strictly status, but this also includes hardware configuration, which is used by switchd to configure the switch.
 
-Additionally, ops-lacpd configures the bonding driver to create bond interfaces using the Linux virtual interfaces correspondent to the physical interfaces that are members of the LAG to mimic the hardware aggregation.
+Additionally, ops-portd configures the bonding driver to create bond interfaces using the Linux virtual interfaces correspondent to the physical interfaces that are members of the LAG.  This is done by ops-portd instead of ops-lacpd because ops-portd is the daemon in charge of maintaining the Linux interfaces' state in synch with OVSDB.  After the bond interface is created, ops-portd monitors its state as it does with any other interface.
 
 OVSDB-Schema
 ------------
@@ -92,12 +95,26 @@ system table
 
 port table
   port:name
-    -> the name of the port (potential LAG)
-  port:lacp
-    -> user configuration: active or passive if LACP is configured for port
+    -> the name of the port (potential LAG).  For LAGs the port name must be
+       "lag#" where # is a positive integer.
   port:interfaces
     -> user configuration: list of interfaces configured in port
        (multiple interfaces implies that the port is a LAG)
+  port:lacp
+    -> user configuration: active or passive if LACP is configured for port.
+       If this column is empty and there are two or more interfaces in the
+       port then the row represents a static LAG.
+  port:other_config
+    lacp-system-id
+      -> user configuration: override system id for this LAG
+    lacp-system-priority
+      -> user configuration: override system priority for this LAG
+    lacp-time
+      -> user configuration: "fast" or "slow" LACP heartbeats. The rate at which LACPDUs are sent.  A "slow" value means 30 seconds and a "fast" value means 1 second.
+    lacp-fallback
+      -> user configuration: "true" means that the LAG fallbacks to a single
+         active interface when no partner is detected.  "false" means that when
+         no partner is detected all interfaces are blocked.
   port:lacp_status
     -> written with the current status of LACP negotiation (if configured)
     bond_speed
@@ -106,25 +123,20 @@ port table
       -> "ok", "down", or "defaulted"
     bond_status_reason
       -> string specifying why the bond_status value is "down"
-  port:other_config
-    lacp-system-id
-      -> user configuration: override system id for this LAG
-    lacp-system-priority
-      -> user configuration: override system priority for this LAG
-    lacp-time
-      -> user configuration: "fast" or "slow" LACP heartbeats
 
 interface table
   interface:name
     -> the name of the interface
   interface:type
-    -> lacpd ignores "internal" interfaces
+    -> lacpd ignores "internal", "vlansubint" and "loopback" interfaces
   interface:duplex
-    -> duplex state of interface (if linked)
+    -> duplex state of interface (if linked).  All interfaces in a LAG must
+       have the same duplex
   interface:link_state
-    -> link state of interface (must be up to participate)
+    -> link state of interface (must be "up" to participate)
   interface:link_speed
-    -> link speed of interface
+    -> link speed of interface. All interfaces in a LAG must
+       have the same speed
   interface:hw_bond_config
     -> ops-lacpd writes to tell switchd how to configure LAG
     bond_hw_handle
@@ -161,6 +173,8 @@ interface table
       -> user configuration: port identifier override
     lacp-port-priority
       -> user configuration: port priority override
+    lacp-aggregation-key
+      -> user configuration: port aggregation key
 ```
 
 Internal structure
