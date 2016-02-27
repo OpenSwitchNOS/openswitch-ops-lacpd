@@ -1301,6 +1301,7 @@ class Test_lacpd:
     def teardown_class(cls):
         Test_lacpd.test.net.switches[0].cmd("/bin/systemctl start pmd")
         Test_lacpd.test.net.switches[1].cmd("/bin/systemctl start pmd")
+        Test_lacpd.test.net.switches[1].cmd("/bin/systemctl stop ops-lacpd")
 
         # Stop the Docker containers, and
         # mininet topology
