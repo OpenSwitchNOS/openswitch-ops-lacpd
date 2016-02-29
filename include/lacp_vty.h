@@ -24,9 +24,12 @@
 #ifndef _LACP_VTY_H
 #define _LACP_VTY_H
 
+#define OVSDB_LB_HASH_SUFFIX  "-hash"
+
 void cli_pre_init(void);
 void cli_post_init(void);
 bool lacp_exceeded_maximum_lag(void);
 int vtysh_init_intf_lag_context_clients();
+char * lacp_remove_lb_hash_suffix(const char * lb_hash);
 
 #endif /* _LACP_VTY_H */
