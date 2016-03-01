@@ -49,6 +49,7 @@
 #include "vtysh/utils/lacp_vtysh_utils.h"
 #include "vtysh/utils/vrf_vtysh_utils.h"
 #include "vtysh_ovsdb_intf_lag_context.h"
+#include "vrf-utils.h"
 
 VLOG_DEFINE_THIS_MODULE(vtysh_lacp_cli);
 extern struct ovsdb_idl *idl;
@@ -1897,7 +1898,7 @@ static int lag_routing(const char *port_name)
     }
     ovsrec_bridge_set_ports(default_bridge_row, ports, n);
 
-    default_vrf_row = vrf_lookup(DEFAULT_VRF_NAME);
+    default_vrf_row = ovsrec_vrf_first(idl);//TODO: replace with get_default_vrf
     xrealloc(ports, sizeof *default_vrf_row->ports *
         (default_vrf_row->n_ports + 1));
     for (i = 0; i < default_vrf_row->n_ports; i++) {
