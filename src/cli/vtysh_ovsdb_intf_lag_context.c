@@ -34,8 +34,6 @@
 #include "vtysh/utils/intf_vtysh_utils.h"
 #include "vtysh/utils/system_vtysh_utils.h"
 
-char intflagcontextclientname[] = "vtysh_intf_lag_context_clientcallback";
-
 /*-----------------------------------------------------------------------------
 | Function : vtysh_ovsdb_intftable_parse_vlan
 | Responsibility : Used for VLAN related config
@@ -242,31 +240,5 @@ vtysh_intf_context_lag_clientcallback(void *p_private)
     }
   }
 
-  return e_vtysh_ok;
-}
-
-/*-----------------------------------------------------------------------------
-| Function : vtysh_init_intf_lag_context_clients
-| Responsibility : Registers the client callback routines for interface lag context
-| Parameters :
-| Return : int
------------------------------------------------------------------------------*/
-int
-vtysh_init_intf_lag_context_clients()
-{
-  vtysh_context_client client;
-  vtysh_ret_val retval = e_vtysh_error;
-
-  client.p_client_name = intflagcontextclientname;
-  client.client_id = e_vtysh_interface_lag_context_config;
-  client.p_callback = &vtysh_intf_lag_context_clientcallback;
-  retval = vtysh_context_addclient(e_vtysh_interface_lag_context, e_vtysh_interface_lag_context_config, &client);
-  if(e_vtysh_ok != retval)
-  {
-    vtysh_ovsdb_config_logmsg(VTYSH_OVSDB_CONFIG_ERR,
-                              "Interface LAG context unable to add config callback");
-    assert(0);
-    return retval;
-  }
   return e_vtysh_ok;
 }
