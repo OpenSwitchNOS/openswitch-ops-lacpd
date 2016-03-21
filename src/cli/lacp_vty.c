@@ -1813,6 +1813,18 @@ DEFUN (cli_lacp_show_all_interfaces,
   return lacp_show_interfaces_all();
 }
 
+bool isNumeric(const char *str)
+{
+    while(*str != '\0')
+    {
+        if(*str < '0' || *str > '9') {
+            return false;
+        }
+        str++;
+    }
+    return true;
+}
+
 static int
 lacp_show_interfaces(const char *if_name)
 {
@@ -1931,7 +1943,12 @@ DEFUN (cli_lacp_show_interfaces,
       "Show LACP interfaces\n"
       "Interface's name\n")
 {
-  return lacp_show_interfaces(argv[0]);
+   if (isNumeric(argv[0])) {
+      return lacp_show_interfaces(argv[0]);
+   } else {
+       vty_out(vty, "%% Unknown command.%s", VTY_NEWLINE);
+       return CMD_SUCCESS;
+   }
 }
 
 /*
