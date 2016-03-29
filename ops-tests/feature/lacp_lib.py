@@ -67,6 +67,11 @@ def associate_interface_to_lag(sw, interface, lag_id):
         "Unable to associate interface to lag"
 
 
+def disassociate_interface_to_lag(sw, interface, lag_id):
+    with sw.libs.vtysh.ConfigInterface(interface) as ctx:
+        ctx.no_lag(lag_id)
+
+
 def associate_vlan_to_lag(sw, vlan_id, lag_id):
     with sw.libs.vtysh.ConfigInterfaceLag(lag_id) as ctx:
         ctx.no_routing()
@@ -239,8 +244,12 @@ def create_vlan(sw, vlan_id):
     with sw.libs.vtysh.ConfigVlan(vlan_id) as ctx:
         ctx.no_shutdown()
     output = sw.libs.vtysh.show_vlan(vlan_id)
-    assert output[vlan_id]['status'] == 'up',\
-        'Vlan is not up after turning it on'
+
+
+def validate_vlan_state(sw, vlan_id, state):
+    output = sw.libs.vtysh.show_vlan(vlan_id)
+    assert output[vlan_id]['status'] == state,\
+        'Vlan is not in ' + state + ' state'
 
 
 def associate_vlan_to_l2_interface(sw, vlan_id, interface):
@@ -250,15 +259,6 @@ def associate_vlan_to_l2_interface(sw, vlan_id, interface):
     output = sw.libs.vtysh.show_vlan(vlan_id)
     assert interface in output[vlan_id]['ports'],\
         'Vlan was not properly associated with Interface'
-
-
-def check_connectivity_between_hosts(h1, h1_ip, h2, h2_ip):
-    ping = h1.libs.ping.ping(1, h2_ip)
-    assert ping['transmitted'] == ping['received'] == 1,\
-        'Ping between ' + h1_ip + ' and ' + h2_ip + ' failed'
-    ping = h2.libs.ping.ping(1, h1_ip)
-    assert ping['transmitted'] == ping['received'] == 1,\
-        'Ping between ' + h2_ip + ' and ' + h1_ip + ' failed'
 
 
 def validate_interface_not_in_lag(sw, interface, lag_id):
@@ -312,3 +312,7 @@ def lag_shutdown(sw, lag_id):
 def lag_no_shutdown(sw, lag_id):
     with sw.libs.vtysh.ConfigInterfaceLag(lag_id) as ctx:
         ctx.no_shutdown()
+
+def set_lacp_rate_fast(sw, lag_id):
+    with sw.libs.vtysh.ConfigInterfaceLag(lag_id) as ctx:
+        ctx.lacp_rate_fast()

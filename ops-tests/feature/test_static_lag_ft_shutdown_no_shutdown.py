@@ -116,9 +116,6 @@ def test_lag_shutdown_by_default(topology):
     create_lag_active(sw1, sw1_lag_id)
     create_lag_active(sw2, sw2_lag_id)
 
-    lag_no_routing(sw1, sw1_lag_id)
-    lag_no_routing(sw2, sw2_lag_id)
-
     print("Configure vlan and switch interfaces")
     create_vlan(sw1, vlan)
     create_vlan(sw2, vlan)
@@ -223,8 +220,6 @@ def test_lag_shutdown_disabled(topology):
     print("Create LAG in both switches")
     create_lag_active(sw1, sw1_lag_id)
     create_lag_active(sw2, sw2_lag_id)
-    lag_no_routing(sw1, sw1_lag_id)
-    lag_no_routing(sw2, sw2_lag_id)
 
     print("Configure vlan and switch interfaces")
     create_vlan(sw1, vlan)
@@ -348,8 +343,6 @@ def test_lag_shutdown_enabled(topology):
     print("Create LAG in both switches")
     create_lag_passive(sw1, sw1_lag_id)
     create_lag_active(sw2, sw2_lag_id)
-    lag_no_routing(sw1, sw1_lag_id)
-    lag_no_routing(sw2, sw2_lag_id)
 
     print("Configure vlan and switch interfaces")
     create_vlan(sw1, vlan)
