@@ -1147,6 +1147,12 @@ class Test_lacpd:
         Test_lacpd.test.net.switches[0].cmd("/bin/systemctl start pmd")
         Test_lacpd.test.net.switches[1].cmd("/bin/systemctl start pmd")
 
+        # ops-lacpd is stopped so that it produces the gcov coverage data
+        Test_lacpd.test.net.switches[0].cmd("/bin/systemctl stop ops-lacpd")
+        # both daemons will write to the same file, so it is a good idea to wait.
+        time.sleep(0.2)
+        Test_lacpd.test.net.switches[1].cmd("/bin/systemctl stop ops-lacpd")
+
         # Stop the Docker containers, and
         # mininet topology
         Test_lacpd.test.net.stop()
