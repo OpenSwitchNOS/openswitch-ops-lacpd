@@ -638,6 +638,17 @@ class TestLacpAggrKey:
         TestLacpAggrKey.test.net.switches[0].cmd("/bin/systemctl start pmd")
         TestLacpAggrKey.test.net.switches[1].cmd("/bin/systemctl start pmd")
 
+        # ops-lacpd is stopped so that it produces the gcov coverage data
+        #
+        # Daemons from both switches will dump the coverage data to the
+        # same file but the data write is done on daemon exit only.
+        # The systemctl command waits until the process exits to return the
+        # prompt and the object.cmd() function waits for the command to return,
+        # therefore it is safe to stop the ops-lacpd daemons sequentially
+        # This ensures that data from both processes is captured.
+        TestLacpAggrKey.test.net.switches[0].cmd("/bin/systemctl stop ops-lacpd")
+        TestLacpAggrKey.test.net.switches[1].cmd("/bin/systemctl stop ops-lacpd")
+
         TestLacpAggrKey.test.net.stop()
 
     def setup_method(self, method):
