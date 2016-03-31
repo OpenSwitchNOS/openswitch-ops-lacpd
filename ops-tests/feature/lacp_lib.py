@@ -230,6 +230,59 @@ def get_info_from_packet_capture(capture, switch_side, sw_mac):
     return result
 
 
+def tcpdump_capture_interface_start(sw, interface_id):
+    cmd_output = sw('tcpdump -D'.format(**locals()),
+                    shell='bash_swns')
+    interface_re = (r'(?P<linux_interface>\d)\.' + interface_id +
+                    r'\s[\[Up, Running\]]')
+    re_result = re.search(interface_re, cmd_output)
+    assert re_result
+    result = re_result.groupdict()
+
+    cmd_output = sw(
+        'tcpdump -ni ' + result['linux_interface'] +
+        ' -e ether proto ' + LACP_PROTOCOL + ' -vv'
+        '> /tmp/ops_{interface_id}.cap 2>&1 &'.format(**locals()),
+        shell='bash_swns'
+    )
+
+    res = re.compile(r'\[\d+\] (\d+)')
+    res_pid = res.findall(cmd_output)
+
+    if len(res_pid) == 1:
+        tcpdump_pid = int(res_pid[0])
+    else:
+        tcpdump_pid = -1
+
+    return tcpdump_pid
+
+
+def tcpdump_capture_interface_stop(sw, interface_id, tcpdump_pid):
+    sw('kill {tcpdump_pid}'.format(**locals()),
+        shell='bash_swns')
+
+    capture = sw('cat /tmp/ops_{interface_id}.cap'.format(**locals()),
+                 shell='bash_swns')
+
+    sw('rm /tmp/ops_{interface_id}.cap'.format(**locals()),
+       shell='bash_swns')
+
+    return capture
+
+
+def get_counters_from_packet_capture(capture):
+    tcp_counters = {}
+
+    packet_re = (r'(\d+) (\S+) (received|captured|dropped)')
+    res = re.compile(packet_re)
+    re_result = res.findall(capture)
+
+    for x in re_result:
+        tcp_counters[x[2]] = int(x[0])
+
+    return tcp_counters
+
+
 def set_debug(sw):
     sw('ovs-appctl -t ops-lacpd vlog/set dbg'.format(**locals()),
        shell='bash')
@@ -238,9 +291,6 @@ def set_debug(sw):
 def create_vlan(sw, vlan_id):
     with sw.libs.vtysh.ConfigVlan(vlan_id) as ctx:
         ctx.no_shutdown()
-    output = sw.libs.vtysh.show_vlan(vlan_id)
-    assert output[vlan_id]['status'] == 'up',\
-        'Vlan is not up after turning it on'
 
 
 def associate_vlan_to_l2_interface(sw, vlan_id, interface):
@@ -250,15 +300,6 @@ def associate_vlan_to_l2_interface(sw, vlan_id, interface):
     output = sw.libs.vtysh.show_vlan(vlan_id)
     assert interface in output[vlan_id]['ports'],\
         'Vlan was not properly associated with Interface'
-
-
-def check_connectivity_between_hosts(h1, h1_ip, h2, h2_ip):
-    ping = h1.libs.ping.ping(1, h2_ip)
-    assert ping['transmitted'] == ping['received'] == 1,\
-        'Ping between ' + h1_ip + ' and ' + h2_ip + ' failed'
-    ping = h2.libs.ping.ping(1, h1_ip)
-    assert ping['transmitted'] == ping['received'] == 1,\
-        'Ping between ' + h2_ip + ' and ' + h1_ip + ' failed'
 
 
 def validate_interface_not_in_lag(sw, interface, lag_id):
@@ -312,3 +353,11 @@ def lag_shutdown(sw, lag_id):
 def lag_no_shutdown(sw, lag_id):
     with sw.libs.vtysh.ConfigInterfaceLag(lag_id) as ctx:
         ctx.no_shutdown()
+
+
+def config_lacp_rate(sw, lag_id, lacp_rate_fast=False):
+    with sw.libs.vtysh.ConfigInterfaceLag(lag_id) as ctx:
+        if lacp_rate_fast:
+            ctx.lacp_rate_fast()
+        else:
+            ctx.no_lacp_rate_fast()
