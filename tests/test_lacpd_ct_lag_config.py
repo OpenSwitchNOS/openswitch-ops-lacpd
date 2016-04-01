@@ -882,6 +882,7 @@ class lacpdTest(OpsVsiTest):
                                     "s2:" + intf)
 
 
+@pytest.mark.skipif(True, reason="Disabling old tests")
 class Test_lacpd:
 
     def setup(self):
