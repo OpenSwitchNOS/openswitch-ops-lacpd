@@ -912,6 +912,7 @@ class LACPMaxNumberOfLags(OpsVsiTest):
         info("DONE\n")
 
 
+@pytest.mark.skipif(True, reason="Disabling old tests")
 class Test_lacp_max_lags:
 
     def setup(self):

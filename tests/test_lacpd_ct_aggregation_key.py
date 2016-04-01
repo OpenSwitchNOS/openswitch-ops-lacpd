@@ -603,6 +603,7 @@ class LacpdAggregationKeyTest(OpsVsiTest):
         s2.ovscmd("ovs-vsctl del-port lag60")
 
 
+@pytest.mark.skipif(True, reason="Disabling old tests")
 class TestLacpAggrKey:
 
     def setup(self):
