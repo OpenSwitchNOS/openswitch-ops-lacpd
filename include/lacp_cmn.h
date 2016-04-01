@@ -42,6 +42,7 @@ typedef unsigned char         macaddr_6_t[MAC_BYTEADDR_SIZE];
 
 /* LAG Port Name prefix */
 #define LAG_PORT_NAME_PREFIX_LENGTH (3)
+#define LAG_PORT_NAME_PREFIX "lag"
 
 
 /******************************************************************************************/
