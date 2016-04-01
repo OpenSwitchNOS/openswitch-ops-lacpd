@@ -941,7 +941,11 @@ class LACPMaxNumberOfLags(OpsVsiTest):
         s1.cmdCLI('end')
 
 
+<<<<<<< HEAD
 @pytest.mark.skipif(True, reason="Skipping due to instability")
+=======
+@pytest.mark.skipif(True, reason="Disabling old tests")
+>>>>>>> chg: dev: Convert previous LACP test from FT to MF
 class Test_lacp_max_lags:
 
     def setup(self):

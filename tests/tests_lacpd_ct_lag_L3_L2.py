@@ -320,6 +320,7 @@ class vrfCLITest(OpsVsiTest):
         s1.cmdCLI('exit')
 
 
+@pytest.mark.skipif(True, reason="Disabling old tests")
 class Test_vtysh_vrf:
 
     def setup_class(cls):

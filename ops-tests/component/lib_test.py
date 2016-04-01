@@ -35,7 +35,6 @@ def sw_set_system_lacp_config(sw, config):
 
     return sw(cmd, shell='vsctl')
 
-
 # This method calls a function to retrieve data, then calls another function
 # to compare the data to the expected value(s). If it fails, it sleeps for
 # half a second, then retries, up to a specified retry limit (default 20 = 10
