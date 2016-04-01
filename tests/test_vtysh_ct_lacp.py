@@ -745,6 +745,7 @@ class LACPCliTest(OpsVsiTest):
 
         return True
 
+@pytest.mark.skipif(True, reason="Disabling old tests")
 class Test_lacp_cli:
 
     def setup(self):
@@ -939,6 +940,7 @@ class LACPMaxNumberOfLags(OpsVsiTest):
         s1.cmdCLI('end')
 
 
+@pytest.mark.skipif(True, reason="Disabling old tests")
 class Test_lacp_max_lags:
 
     def setup(self):
