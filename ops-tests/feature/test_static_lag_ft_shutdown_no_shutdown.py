@@ -134,7 +134,7 @@ def test_lag_shutdown_by_default(topology):
     associate_interface_to_lag(sw2, p22, sw2_lag_id)
 
     print("Waiting some time for the interfaces to be up")
-    time.sleep(20)
+    time.sleep(60)
 
     print("Verify all interface are up")
     for port in ports_sw1:
@@ -239,7 +239,7 @@ def test_lag_shutdown_disabled(topology):
     associate_interface_to_lag(sw2, p22, sw2_lag_id)
 
     print("Waiting some time for the interfaces to be up")
-    time.sleep(20)
+    time.sleep(60)
 
     print("Verify all interface are up")
     for port in ports_sw1:
@@ -362,7 +362,7 @@ def test_lag_shutdown_enabled(topology):
     associate_interface_to_lag(sw2, p22, sw2_lag_id)
 
     print("Waiting some time for the interfaces to be up")
-    time.sleep(20)
+    time.sleep(60)
 
     print("Verify all interface are up")
     for port in ports_sw1:
@@ -396,6 +396,7 @@ def test_lag_shutdown_enabled(topology):
     lag_no_shutdown(sw1, sw1_lag_id)
     lag_no_shutdown(sw2, sw2_lag_id)
 
+    time.sleep(10)
     check_connectivity_between_hosts(hs1, h1_ip_address, hs2, h2_ip_address,
                                      10, True)
 

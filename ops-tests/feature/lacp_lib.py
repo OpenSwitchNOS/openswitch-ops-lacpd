@@ -385,7 +385,7 @@ def check_connectivity_between_switches(s1, s1_ip, s2, s2_ip,
         assert ping['transmitted'] == ping['received'] == ping_num,\
             'Ping between ' + s1_ip + ' and ' + s2_ip + ' failed'
     else:
-        assert ping['received'] == 0,\
+        assert 'Network is unreachable' is not ping, \
             'Ping between ' + s1_ip + ' and ' + s2_ip + ' success'
 
     ping = s2.libs.vtysh.ping_repetitions(s1_ip, ping_num)
@@ -393,7 +393,7 @@ def check_connectivity_between_switches(s1, s1_ip, s2, s2_ip,
         assert ping['transmitted'] == ping['received'] == ping_num,\
             'Ping between ' + s2_ip + ' and ' + s1_ip + ' failed'
     else:
-        assert ping['received'] == 0,\
+        assert 'Network is unreachable' is not ping,\
             'Ping between ' + s2_ip + ' and ' + s1_ip + ' success'
 
 
