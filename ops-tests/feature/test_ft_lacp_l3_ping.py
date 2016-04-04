@@ -102,7 +102,7 @@ def test_l3_dynamic_lag_ping_case_1(topology):
     associate_interface_to_lag(sw2, p23, sw2_lag_id)
 
     print("Waiting for LAG negotations between switches")
-    time.sleep(30)
+    time.sleep(60)
 
     print("Verify all interface are up")
     validate_turn_on_interfaces(sw1, ports_sw1)
