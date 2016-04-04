@@ -127,7 +127,7 @@ def test_l2_dynamic_lag_ping_case_1(topology):
         turn_on_interface(sw2, port)
 
     print("Waiting some time for the interfaces to be up")
-    sleep(15)
+    sleep(40)
 
     print("Verify all interface are up")
     validate_turn_on_interfaces(sw1, ports_sw1)
