@@ -45,6 +45,10 @@ from lacp_lib import associate_vlan_to_lag
 from lacp_lib import create_vlan
 from lacp_lib import check_connectivity_between_hosts
 from lacp_lib import delete_lag
+from pytest import raises
+from topology_lib_vtysh.exceptions import UnknownCommandException
+from topology_lib_vtysh.exceptions import UnknownVtyshException
+from lacp_lib import validate_turn_on_interfaces
 
 TOPOLOGY = """
 
@@ -105,15 +109,13 @@ def test_delete_invalid_lag(topology):
     print("#### Turning on interfaces in sw1 ###")
     for port in ports_sw1:
         turn_on_interface(sw1, port)
-    sleep(15)
-    # set_trace()
-    validate_turn_on_interfaces(sw1, ports_sw1)
 
     print("#### Turning on interfaces in sw2 ###")
     for port in ports_sw2:
         turn_on_interface(sw2, port)
-    # set_trace()
-    sleep(15)
+
+    sleep(60)
+    validate_turn_on_interfaces(sw1, ports_sw1)
     validate_turn_on_interfaces(sw2, ports_sw2)
 
     print("##### Create LAGs ####")
@@ -126,6 +128,10 @@ def test_delete_invalid_lag(topology):
 
     for intf in ports_sw2[1:3]:
         associate_interface_to_lag(sw2, intf, '1')
+
+    sleep(40)
+    validate_turn_on_interfaces(sw1, ports_sw1)
+    validate_turn_on_interfaces(sw2, ports_sw2)
 
     print("#### Configure VLANs on switches ####")
     create_vlan(sw1, '900')
@@ -141,7 +147,7 @@ def test_delete_invalid_lag(topology):
     hs1.libs.ip.interface('1', addr='140.1.1.10/24', up=True)
     hs2.libs.ip.interface('1', addr='140.1.1.11/24', up=True)
 
-    sleep(5)
+    sleep(100)
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
@@ -149,164 +155,128 @@ def test_delete_invalid_lag(topology):
 
     print("### Attempt to delete LAGs on switch1 ###")
     print("## With ID XX ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException):
         delete_lag(sw1, 'XX')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 0 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw1, '0')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID -1 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw1, '-1')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 2000 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownVtyshException) as excinfo:
         delete_lag(sw1, '2000')
-    assert 'Specified LAG port doesn\'t exist.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 2001 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw1, '2001')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID @%&$#() ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw1, '@%&$#()')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 60000 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw1, '60000')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 600 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownVtyshException) as excinfo:
         delete_lag(sw1, '600')
-    assert 'Specified LAG port doesn\'t exist.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 2 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownVtyshException) as excinfo:
         delete_lag(sw1, '2')
-    assert 'Specified LAG port doesn\'t exist.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("### Attempt to delete LAGs on switch2 ###")
     print("## With ID XX ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw2, 'XX')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 0 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw2, '0')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID -1 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw2, '-1')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 2000 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownVtyshException) as excinfo:
         delete_lag(sw2, '2000')
-    assert 'Specified LAG port doesn\'t exist.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 2001 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw2, '2001')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID @%&$#() ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw2, '@%&$#()')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 60000 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownCommandException) as excinfo:
         delete_lag(sw2, '60000')
-    assert 'Unknown command.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 600 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownVtyshException) as excinfo:
         delete_lag(sw2, '600')
-    assert 'Specified LAG port doesn\'t exist.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
 
     print("## With ID 2 ##")
-    with raises(AssertionError) as excinfo:
+    with raises(UnknownVtyshException) as excinfo:
         delete_lag(sw2, '2')
-    assert 'Specified LAG port doesn\'t exist.' in str(excinfo.value),\
-        'Incorrect error shown in CLI command'
 
     print("#### Test ping between clients work ####")
     check_connectivity_between_hosts(hs1, '140.1.1.10', hs2, '140.1.1.11', 5, True)
