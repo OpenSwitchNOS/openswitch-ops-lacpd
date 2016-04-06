@@ -183,6 +183,11 @@ def validate_lag_state_out_of_sync(map_lacp, state):
         "LAG state should not be out of sync"
 
 
+def validate_one_interface_up(map_lacp, LOCAL_STATE):
+    if map_lacp[state]['in_sync']:
+        return False
+
+
 def validate_lag_state_afn(map_lacp, state):
     assert map_lacp[state]['active'] is True,\
         "LAG state should be active"
