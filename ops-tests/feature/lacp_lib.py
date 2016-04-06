@@ -196,6 +196,49 @@ def validate_lag_state_afn(map_lacp, state):
         "LAG state should not be in distributing"
 
 
+def validate_lag_state_afoex(map_lacp, state):
+    assert map_lacp[state]['active'] is True,\
+        "LAG state should be active"
+    assert map_lacp[state]['aggregable'] is True,\
+        "LAG state should have aggregable enabled"
+    assert map_lacp[state]['out_sync'] is True,\
+        "LAG state should be Out of Sync"
+    assert map_lacp[state]['neighbor_state'] is True,\
+        "LAG state should not be in Defaulted state"
+    assert map_lacp[state]['state_expired'] is True,\
+        "LAG state should not be in Expired state"
+
+
+def validate_lag_state_afncde(map_lacp, state):
+    correct_state = False
+    print("validate_lag_state_afncde")
+    print(map_lacp)
+    if map_lacp[state]['active'] is True and\
+       map_lacp[state]['aggregable'] is True and\
+       map_lacp[state]['in_sync'] is True and\
+       map_lacp[state]['collecting'] is True and\
+       map_lacp[state]['distributing'] is True and\
+       map_lacp[state]['neighbor_state'] is True:
+        print("Correct afncde state")
+        correct_state = True
+
+    return correct_state
+
+
+def validate_lag_state_afoe(map_lacp, state):
+    correct_state = False
+    print("validate_lag_state_afoe")
+    print(map_lacp)
+    if map_lacp[state]['active'] is True and\
+       map_lacp[state]['aggregable'] is True and\
+       map_lacp[state]['out_sync'] is True and\
+       map_lacp[state]['neighbor_state'] is True:
+        print("Correct afoe state")
+        correct_state = True
+
+    return correct_state
+
+
 def validate_lag_state_static(map_lacp, state):
     for key in map_lacp[state]:
         assert map_lacp[state][key] is False,\
