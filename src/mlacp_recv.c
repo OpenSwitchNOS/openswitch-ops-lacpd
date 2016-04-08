@@ -262,6 +262,19 @@ mlacp_process_api_msg(ML_event *pevent)
         }
         break;
 
+        case MLm_vpm_api__set_lacp_fallback_status:
+        {
+            struct MLt_vpm_api__fallback_status *pMsg = pevent->msg;
+
+            RDEBUG(DL_LACP_RCV,
+                   "LACP fallback status=%d\n",
+                   pMsg->status);
+
+            set_all_port_fallback_status(pMsg->sport_handle,
+                                         pMsg->status);
+        }
+        break;
+
         default:
         {
             VLOG_ERR("%s : Unknown req (%d)", __FUNCTION__, pevent->msgnum);
