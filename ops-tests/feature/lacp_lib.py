@@ -61,7 +61,7 @@ def create_lag(sw, lag_id, lag_mode):
         elif(lag_mode == 'passive'):
             ctx.lacp_mode_passive()
         elif(lag_mode == 'off'):
-            ctx.routing()
+            pass
         else:
             assert False, 'Invalid mode %s for LAG' % (lag_mode)
     lag_name = "lag" + lag_id
@@ -147,9 +147,9 @@ def validate_lag_name(map_lacp, lag_id):
         "LAG ID should be " + lag_id
 
 
-def validate_lag_state_sync(map_lacp, state):
-    assert map_lacp[state]['active'] is True,\
-        "LAG state should be active"
+def validate_lag_state_sync(map_lacp, state, lacp_mode='active'):
+    assert map_lacp[state][lacp_mode] is True,\
+        "LAG state should be {}".format(lacp_mode)
     assert map_lacp[state]['aggregable'] is True,\
         "LAG state should have aggregable enabled"
     assert map_lacp[state]['in_sync'] is True,\
@@ -186,6 +186,12 @@ def validate_lag_state_afn(map_lacp, state):
         "LAG state should not be in collecting"
     assert map_lacp[state]['distributing'] is False,\
         "LAG state should not be in distributing"
+
+
+def validate_lag_state_static(map_lacp, state):
+    for key in map_lacp[state]:
+        assert map_lacp[state][key] is False,\
+            "LAG state for {} should be False".format(key)
 
 
 def validate_lag_state_default_neighbor(map_lacp, state):
@@ -334,10 +340,12 @@ def create_vlan(sw, vlan_id):
     with sw.libs.vtysh.ConfigVlan(vlan_id) as ctx:
         ctx.no_shutdown()
 
+
 def validate_vlan_state(sw, vlan_id, state):
     output = sw.libs.vtysh.show_vlan(vlan_id)
     assert output[vlan_id]['status'] == state,\
         'Vlan is not in ' + state + ' state'
+
 
 def delete_vlan(sw, vlan):
     with sw.libs.vtysh.Configure() as ctx:
@@ -438,6 +446,7 @@ def assign_ip_to_lag(sw, lag_id, ip_address, ip_address_mask):
         ctx.routing()
         ctx.ip_address(ip_address_complete)
 
+
 def config_lacp_rate(sw, lag_id, lacp_rate_fast=False):
     with sw.libs.vtysh.ConfigInterfaceLag(lag_id) as ctx:
         if lacp_rate_fast:
@@ -445,6 +454,235 @@ def config_lacp_rate(sw, lag_id, lacp_rate_fast=False):
         else:
             ctx.no_lacp_rate_fast()
 
+
 def set_lacp_rate_fast(sw, lag_id):
     with sw.libs.vtysh.ConfigInterfaceLag(lag_id) as ctx:
         ctx.lacp_rate_fast()
+
+
+def verify_lag_config(
+    sw,
+    lag_id,
+    interfaces,
+    heartbeat_rate='slow',
+    fallback=False,
+    hashing='l3-src-dst',
+    mode='off'
+):
+    lag_name = 'lag{lag_id}'.format(**locals())
+    lag_config = sw.libs.vtysh.show_lacp_aggregates(lag=lag_name)
+    assert len(interfaces) == len(lag_config[lag_name]['interfaces']),\
+        ' '.join(
+        [
+            "{} interfaces in LAG is different".format(
+                len(lag_config[lag_name]['interfaces'])
+            ),
+            "than the expected number of {}".format(len(interfaces))
+        ]
+    )
+    for interface in interfaces:
+        assert interface in lag_config[lag_name]['interfaces'],\
+            "Interface {} is not in LAG".format(interface)
+    assert heartbeat_rate == lag_config[lag_name]['heartbeat_rate'],\
+        "Heartbeat rate {} is not expected. Expected {}".format(
+            lag_config[lag_name]['heartbeat_rate'],
+            heartbeat_rate
+    )
+    assert fallback == lag_config[lag_name]['fallback'],\
+        "Fallback setting of {} is not expected. Expected {}".format(
+        lag_config[lag_name]['fallback'],
+        fallback
+    )
+    assert hashing == lag_config[lag_name]['hash'],\
+        "Hash setting of {} is not expected. Expected {}".format(
+        lag_config[lag_name]['hash'],
+        hashing
+    )
+    assert hashing == lag_config[lag_name]['hash'],\
+        "LAG mode setting of {} is not expected. Expected {}".format(
+        lag_config[lag_name]['mode'],
+        mode
+    )
+
+
+def verify_vlan_full_state(sw, vlan_id, interfaces=None, status='up'):
+    vlan_status = sw.libs.vtysh.show_vlan()
+    vlan_str_id = str(vlan_id)
+    assert vlan_str_id in vlan_status,\
+        'VLAN not found, Expected: {}'.format(vlan_str_id)
+    assert vlan_status[vlan_str_id]['status'] == status,\
+        'Unexpected VLAN status, Expected: {}'.format(status)
+    if interfaces is None:
+        assert len(vlan_status[vlan_str_id]['ports']) == 0,\
+            ''.join(['Unexpected number of interfaces in VLAN',
+                     '{}, Expected: 0'.format(vlan_id)])
+    else:
+        assert len(vlan_status[vlan_str_id]['ports']) == len(interfaces),\
+            'Unexpected number of interfaces in VLAN {}, Expected: {}'.format(
+            vlan_id,
+            len(interfaces)
+        )
+        for interface in interfaces:
+            assert interface not in vlan_status[vlan_str_id],\
+                'Interface not found in VLAN {}, Expected {}'.format(
+                vlan_id,
+                interface
+            )
+
+
+def verify_lag_static_empty_values(map_lacp):
+    for key in map_lacp:
+        if key != 'remote_state' and key != 'local_state':
+            assert map_lacp[key] == '',\
+                'Unexpected value for {}, Expected \'\''.format(key)
+        else:
+            validate_lag_state_static(map_lacp, key)
+
+
+def verify_lag_state_cross_interface(
+    sw1_int_map_lacp,
+    sw2_int_map_lacp,
+    sw1_map_lacp_config,
+    sw2_map_lacp_config,
+    sw1_int_key='1',
+    sw2_int_key='1',
+    sw1_int_priority='65534',
+    sw2_int_priority='65534',
+    sw1_int_port_id=None,
+    sw2_int_port_id=None,
+    sw1_lacp_mode='active',
+    sw2_lacp_mode='active',
+    sw1_state_comp_method=None,
+    sw2_state_comp_method=None
+):
+    if sw1_state_comp_method is None:
+        sw1_state_comp_method = validate_lag_state_sync
+    if sw2_state_comp_method is None:
+        sw2_state_comp_method = validate_lag_state_sync
+    sw1_state = {
+        'int_map_lacp': sw1_int_map_lacp,
+        'map_lacp_config': sw1_map_lacp_config,
+        'int_key': sw1_int_key,
+        'int_port_id': sw1_int_port_id,
+        'int_priority': sw1_int_priority,
+        'lacp_mode': sw1_lacp_mode,
+        'state_comp_method': sw1_state_comp_method
+    }
+    sw2_state = {
+        'int_map_lacp': sw2_int_map_lacp,
+        'map_lacp_config': sw2_map_lacp_config,
+        'int_key': sw2_int_key,
+        'int_port_id': sw2_int_port_id,
+        'int_priority': sw2_int_priority,
+        'lacp_mode': sw2_lacp_mode,
+        'state_comp_method': sw2_state_comp_method
+    }
+    for sw_state, other_sw_state in zip(
+        [sw1_state, sw2_state],
+        [sw2_state, sw1_state]
+    ):
+        # LACP global configuration comparison
+        # system id
+        assert sw_state['map_lacp_config']['id'] ==\
+            sw_state['int_map_lacp']['local_system_id'],\
+            'Unexpected local system id {}, Expected: {}'.format(
+            sw_state['int_map_lacp']['local_system_id'],
+            sw_state['map_lacp_config']['id']
+        )
+        assert sw_state['map_lacp_config']['local_system_id'] ==\
+            other_sw_state['map_lacp_config']['remote_system_id'],\
+            ' '.join(
+            ['Remote system id',
+             other_sw_state['map_lacp_config']['remote_system_id'],
+             'on partner does not match local system id, Expected',
+             sw_state['map_lacp_config']['local_system_id']]
+        )
+        # system priority
+        assert str(sw_state['map_lacp_config']['priority']) ==\
+            sw_state['int_map_lacp']['local_system_priority'],\
+            'Unexpected local system priority {}, Expected: {}'.format(
+            sw_state['int_map_lacp']['local_system_priority'],
+            sw_state['map_lacp_config']['priority']
+        )
+        assert sw_state['map_lacp_config']['local_system_priority'] ==\
+            other_sw_state['map_lacp_config']['remote_system_priority'],\
+            ' '.join(
+            ['Remote system priority',
+             other_sw_state['map_lacp_config']['remote_system_priority'],
+             'on partner does not match local system priority, Expected',
+             sw_state['map_lacp_config']['local_system_priority']]
+        )
+        # LACP interface key comparison
+        assert sw_state['int_key'] == sw_state['int_map_lacp']['local_key'],\
+            'Unexpected key value of {}, Expected {}'.format(
+            sw_state['int_map_lacp']['local_key'],
+            sw_state['int_key']
+        )
+        assert sw_state['int_map_lacp']['local_key'] ==\
+            other_sw_state['int_map_lacp']['remote_key'],\
+            'Remote key {} on partner does not match, Expected {}'.format(
+            other_sw_state['int_map_lacp']['remote_key'],
+            sw_state['int_map_lacp']['local_key']
+        )
+        # LACP interface priority comparison
+        assert sw_state['int_priority'] ==\
+            sw_state['int_map_lacp']['local_priority'],\
+            'Unexpected priority value of {}, Expected {}'.format(
+            sw_state['int_map_lacp']['local_priority'],
+            sw_state['int_priority']
+        )
+        assert sw_state['int_map_lacp']['local_priority'] ==\
+            other_sw_state['int_map_lacp']['remote_priority'],\
+            ' '.join(
+            [
+                'Remote priority {} on partner does not match,'.format(
+                    other_sw_state['int_map_lacp']['remote_priority']
+                ),
+                'Expected {}'.format(
+                    sw_state['int_map_lacp']['local_priority'])
+            ]
+        )
+        # LACP port id comparison
+        if sw_state['int_id'] is not None:
+            assert sw_state['int_id'] ==\
+                sw_state['int_map_lacp']['local_id'],\
+                'Unexpected id value of {}, Expected {}'.format(
+                sw_state['int_map_lacp']['local_id'],
+                sw_state['int_id']
+            )
+        assert sw_state['int_map_lacp']['local_id'] ==\
+            other_sw_state['int_map_lacp']['remote_id'],\
+            ' '.join(
+            [
+                'Remote id {} on partner does not match,'.format(
+                    other_sw_state['int_map_lacp']['remote_id']
+                ),
+                'Expected {}'.format(
+                    sw_state['int_map_lacp']['local_id'])
+            ]
+        )
+        # LACP state comparison
+        # Local level
+        try:
+            sw_state['state_comp_method'](
+                sw_state['int_map_lacp'],
+                'local_state',
+                lacp_mode=sw_state['lacp_mode']
+            )
+        except TypeError:
+            sw_state['state_comp_method'](
+                sw_state['int_map_lacp'],
+                'local_state'
+            )
+        # Remote level
+        try:
+            sw_state['state_comp_method'](
+                other_sw_state['int_map_lacp'],
+                'remote_state',
+                lacp_mode=sw_state['lacp_mode']
+            )
+        except TypeError:
+            sw_state['state_comp_method'](
+                other_sw_state['int_map_lacp'],
+                'remote_state'
+            )
