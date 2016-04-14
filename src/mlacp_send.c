@@ -63,7 +63,9 @@ mlacp_blocking_send_select_aggregator(LAG_t *const lag,
                           LACP_LAG_PARTNER_KEY_FIELD_PRESENT    |
                           LACP_LAG_PARTNER_SYSPRI_FIELD_PRESENT |
                           LACP_LAG_PARTNER_SYSID_FIELD_PRESENT  |
-                          LACP_LAG_AGGRTYPE_FIELD_PRESENT);
+                          LACP_LAG_AGGRTYPE_FIELD_PRESENT       |
+                          LACP_LAG_ACTOR_PORT_PRIORITY_FIELD_PRESENT|
+                          LACP_LAG_PARTNER_PORT_PRIORITY_FIELD_PRESENT);
 
     //********************************************************************
     // Send all the params for matching.
@@ -74,6 +76,9 @@ mlacp_blocking_send_select_aggregator(LAG_t *const lag,
     match_params.local_port_number = lag->LAG_Id->local_port_number;
     match_params.actor_aggr_type   = lacp_port->actor_oper_port_state.aggregation;
     match_params.partner_aggr_type = lacp_port->partner_oper_port_state.aggregation;
+
+    match_params.actor_oper_port_priority = lacp_port->actor_admin_port_priority;
+    match_params.partner_oper_port_priority = lacp_port->partner_oper_port_priority;
 
     match_params.partner_system_priority =
         lacp_port->partner_oper_system_variables.system_priority;
