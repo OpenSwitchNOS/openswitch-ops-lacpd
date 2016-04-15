@@ -2270,6 +2270,19 @@ lacpd_run(void)
 
     OVSDB_UNLOCK;
 
+    /**
+     * Update interfaces status on the DB if a system setting changed
+     * */
+    if (system_configured) {
+       lacp_per_port_variables_t* lacp_port;
+       for (lacp_port = LACP_AVL_FIRST(lacp_per_port_vars_tree);
+            lacp_port;
+            lacp_port = LACP_AVL_NEXT(lacp_port->avlnode))
+       {
+           db_update_interface(lacp_port);
+       }
+   }
+
     return;
 } /* lacpd_run */
 
