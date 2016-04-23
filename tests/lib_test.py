@@ -90,9 +90,9 @@ def sw_get_port_state(params):
     for f in params[2]:
         c += " " + f
     out = params[0].ovscmd(c).splitlines()
-    if len(out) == 1:
-        out = out[0]
-    debug(out)
+#    if len(out) == 1:
+#        out = out[0]
+#    debug(out)
     return out
 
 
@@ -161,6 +161,19 @@ def verify_intf_not_in_bond(sw, intf, msg):
         result[1][0] is not 'true' and\
         result[1][1] is not 'true', msg
 
+# Verify interface bond status
+def verify_intf_bond_status(sw, intf, state, msg):
+    result = timed_compare(sw_get_intf_state,
+                           (sw, intf, ['bond_status:' + state]),
+                            verify_compare_value, ['true'])
+    assert result == (True, ["true"]), msg
+
+# Verify port bond status
+def verify_port_bond_status(sw, lag, state,  msg):
+    result = timed_compare(sw_get_port_state,
+                           (sw, lag, ['bond_status:' + state]),
+                           verify_compare_value, ['true'])
+    assert result == (True, ["true"]), msg
 
 # Verify Interface status
 def verify_intf_status(sw, intf, column_name, value, msg=''):
