@@ -138,6 +138,16 @@
   - [Test Result Criteria](#test-result-criteria)
     - [Test Pass Criteria](#test-pass-criteria)
     - [Test Fail Criteria](#test-fail-criteria)
+- [LAG port and member interfaces bond_status](#lag-port-and-member-interfaces-bond-status)
+  - [Objective](#objective)
+  - [Requirements](#requirements)
+  - [Setup](#setup)
+    - [Topology Diagram](#topology-diagram)
+  - [Test Setup](#test-setup)
+  - [Description](#description)
+  - [Test Result Criteria](#test-result-criteria)
+    - [Test Pass Criteria](#test-pass-criteria)
+    - [Test Fail Criteria](#test-fail-criteria)
 
 
 ## Static LAG Membership
@@ -962,5 +972,64 @@ LAG <dynamic_lag_name>:
 	   port_moved:0 ntt:0 port_enabled:0
 ```
 * Output of step 5 and 6 is empty.
+#### Test Fail Criteria
+One or more verifications fail.
+
+
+# LAG port and member interfaces bond_status
+### Objective
+Verify LAG port and member interfaces bond_status value is correctly updated.
+### Requirements
+ - Script is in ops-tests/component/test_lag_ct_bond_status.py
+
+### Setup
+#### Topology Diagram
+```
++------------+
+|            |
+|     s1     |
+|            |
++-1--2--3--4-+
+  |  |  |  |
+  |  |  |  |
+  |  |  |  |
+  |  |  |  |
++-1--2--3--4-+
+|            |
+|     s2     |
+|            |
++------------+
+```
+
+### Description
+1. Turn on all the interfaces used in this test.
+2. Create 1 static LAG in switch 1 and 2 with interfaces 1, 2, 3 and 4.
+
+Note: The following steps are only executed in switch 1.
+
+3. Verify the bond_status for all the interfaces member of the LAG is up
+   and the bond_status of the LAG is also up.
+4. Turn off 3 of the member interfaces of the LAG.
+5. Verify the bond status of the member interfaces that are off is down,
+   the bond_status for the member interface that remains on is up, and
+   the bond_status of the LAG is up.
+6. Turn back on the interfaces turned off in step 4.
+7. Remove one interface from the LAG.
+8. Verify the bond_status of the removed interface is blocked, and the
+   bond_status of the LAG is up.
+9. Add the interface removed in step 7 back to the LAG.
+10. Verify the bond_status of the interface added in step 9 is up, and the
+   bond_status of the LAG is up.
+11. Turn off all the member interfaces of the LAG.
+12. Verify the bond_status for all the interfaces member of the LAG is down
+    and the bond_status of the LAG is also down.
+13. Turn on all the member interfaces of the LAG.
+14. Remove all the member interfaces of the LAG.
+15. Verify the bond_status for all the interfaces removed from the LAG is
+    blocked and the bond_status of the LAG is also blocked.
+
+### Test Result Criteria
+#### Test Pass Criteria
+All verifications succeed.
 #### Test Fail Criteria
 One or more verifications fail.
