@@ -95,6 +95,13 @@ def sw_get_port_state(params):
     debug(out)
     return out
 
+def sw_get_port_state_bs(params):
+    c = OVS_VSCTL + "get port " + str(params[1])
+    for f in params[2]:
+        c += " " + f
+    out = params[0].ovscmd(c).splitlines()
+    debug(out)
+    return out
 
 # Create a bond/lag/trunk in the OVS-DB.
 def sw_create_bond(s1, bond_name, intf_list, lacp_mode="off"):
@@ -161,6 +168,19 @@ def verify_intf_not_in_bond(sw, intf, msg):
         result[1][0] is not 'true' and\
         result[1][1] is not 'true', msg
 
+# Verify interface bond status
+def verify_intf_bond_status(sw, intf, state, msg):
+    result = timed_compare(sw_get_intf_state,
+                           (sw, intf, ['bond_status:' + state]),
+                            verify_compare_value, ['true'])
+    assert result == (True, ["true"]), msg
+
+# Verify port bond status
+def verify_port_bond_status(sw, lag, state,  msg):
+    result = timed_compare(sw_get_port_state_bs,
+                           (sw, lag, ['bond_status:' + state]),
+                           verify_compare_value, ['true'])
+    assert result == (True, ["true"]), msg
 
 # Verify Interface status
 def verify_intf_status(sw, intf, column_name, value, msg=''):
