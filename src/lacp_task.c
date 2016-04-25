@@ -348,7 +348,8 @@ LACP_process_input_pkt(port_handle_t lport_handle, unsigned char *data, int len)
 
     if (plpinfo->debug_level & DBG_LACPDU) {
         int ii;
-        char buf[512];
+        /* Reserving necessary space to write the data, + \n every 16 bytes + null terminator */
+        char buf[len + len/16 + 2];
 
         buf[0] = '\n';
         buf[1] = '\0';
@@ -356,7 +357,7 @@ LACP_process_input_pkt(port_handle_t lport_handle, unsigned char *data, int len)
              __FUNCTION__, len, plpinfo->lport_handle);
         RDBG("\n######################################\n");
         for (ii = 0; ii < len; ii++) {
-            sprintf(&buf[strlen(buf)], "%02x ", data[ii]);
+            snprintf(&buf[strlen(buf)], sizeof(char), "%02x ", data[ii]);
             if ( ((ii + 1) % 16) == 0) {
                 sprintf(&buf[strlen(buf)], "\n");
             }

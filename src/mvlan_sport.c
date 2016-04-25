@@ -253,6 +253,7 @@ mvlan_destroy_sport(super_port_t *psport)
 
     LACP_AVL_DELETE(sport_handle_tree, *psport_node);
 
+    free(psport->placp_params);
     free(psport);
 
     return status;
