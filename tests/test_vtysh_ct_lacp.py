@@ -611,13 +611,13 @@ class LACPCliTest(OpsVsiTest):
         out = s1.cmdCLI('show lacp interface')
         lines = out.split('\n')
         for line in lines:
-            if 'Intf Aggregate Port    Port     Key  State   '\
+            if 'Intf Aggregate Port    Port     State   '\
                'System-id         System   Aggr' in line:
                 success += 1
             if 'name      id      Priority                                '\
                'Priority Key' in line:
                 success += 1
-            if 'Intf Aggregate Partner Port     Key  State   '\
+            if 'Intf Aggregate Partner Port     State   '\
                'System-id         System   Aggr' in line:
                 success += 1
             if 'name      Port-id Priority                                '\
