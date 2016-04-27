@@ -437,7 +437,7 @@ def test_lacpd_lag_dynamic_partner_priority(topology, step, main_setup, setup):
     set_intf_other_config(sw2, '4', ['lacp-port-priority=1'])
 
     step("Waiting for LACP to complete negotiation\n")
-    sleep(30)
+    sleep(50)
     """
     Interface 3 and 4 in switch 2 have the higher priority, LAG 1 in switch 1
     will connect to the LAG 2 because the partner has higher priority
