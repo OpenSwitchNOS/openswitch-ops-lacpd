@@ -49,6 +49,14 @@ def sw_set_intf_user_config(sw, interface, config):
     return sw(c, shell='vsctl')
 
 
+def sw_set_intf_other_config(sw, intf, config):
+    """Set interface:other_config parameter(s)."""
+    c = "set interface " + str(intf)
+    for s in config:
+        c += ' other_config:%s' % s
+    return sw(c, shell='vsctl')
+
+
 # Clear user_config for an Interface.
 def sw_clear_user_config(sw, interface):
     c = "clear interface " + str(interface) + " user_config"
@@ -112,6 +120,14 @@ def set_intf_parameter(sw, intf, config):
     return sw(cmd, shell='vsctl')
 
 
+def remove_intf_parameter(sw, intf, col, keys):
+    """Removes 'keys' in 'col' section from 'intf' on 'sw'."""
+
+    cmd = "remove interface %s %s %s" % (intf, col, ' '.join(map(str, keys)))
+
+    return sw(cmd, shell='vsctl')
+
+
 def sw_get_port_state(params):
     c = "get port " + str(params[1])
     for f in params[2]:
@@ -130,6 +146,17 @@ def sw_create_bond(s1, bond_name, intf_list, lacp_mode="off"):
         " " + " ".join(map(str, intf_list))
     c += " -- set port " + bond_name + " lacp=" + lacp_mode
     return s1(c, shell='vsctl')
+
+def sw_delete_bond(sw, bond_name):
+    """Delete a bond/lag/trunk from OVS-DB."""
+    cmd = "del-port bridge_normal " + bond_name
+    return sw(c, shell='vsctl')
+
+
+def sw_delete_lag(sw, lag_name):
+    """Delete a lag from OVS-DB."""
+    cmd = 'del-port %s' % lag_name
+    return sw(cmd, shell='vsctl')
 
 
 def verify_compare_value(actual, expected, final):
