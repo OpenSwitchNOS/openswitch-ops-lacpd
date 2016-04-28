@@ -58,31 +58,52 @@
 VLOG_DEFINE_THIS_MODULE(vtysh_lacp_cli);
 extern struct ovsdb_idl *idl;
 
-/**
- * This function will check if a given port row has any acl
- * configuration i.e. acl applied in hw or acl configured by
- * user.
- *
- * @param port_row port table row to check for acl configuration
- *
- * @return true if acl configuration is detected, otherwise returns
- *              false.
+/*
+ * qsort comparator function.
  */
-bool
-check_acl_configuration(const struct ovsrec_port *port_row)
+int
+compare_nodes_by_lag_in_numerical(const void *a_, const void *b_)
 {
+    const struct shash_node *const *a = a_;
+    const struct shash_node *const *b = b_;
+    uint lag_1, lag_2;
 
-  ovs_assert(port_row);
-  /* Check all acl columns,
-   * aclv4_in_applied - indicates currently applied acls
-   * aclv4_in_cfg - indicates acl configuration requested by user
-   */
-  if (port_row->aclv4_in_applied || port_row->aclv4_in_cfg) {
+    sscanf((*a)->name, "lag%d", &lag_1);
+    sscanf((*b)->name, "lag%d", &lag_2);
 
-      return true;
-  }
+    if (lag_1 > lag_2) {
+        return 1;
+    } else if (lag_1 < lag_2) {
+        return -1;
+    }
+    return 0;
+}
 
-  return false;
+/*
+ * Sorting function for lag number
+ * on success, returns sorted interface list.
+ */
+const struct shash_node **
+sort_lag_ports(const struct shash *sh)
+{
+    if (shash_is_empty(sh)) {
+        return NULL;
+    } else {
+        const struct shash_node **nodes;
+        struct shash_node *node;
+
+        size_t i, n;
+
+        n = shash_count(sh);
+        nodes = xmalloc(n * sizeof *nodes);
+        i = 0;
+        SHASH_FOR_EACH (node, sh) {
+            nodes[i++] = node;
+        }
+        ovs_assert(i == n);
+        qsort(nodes, n, sizeof *nodes, compare_nodes_by_lag_in_numerical);
+        return nodes;
+    }
 }
 
 bool
@@ -1267,22 +1288,6 @@ lacp_add_intf_to_lag(const char *if_name, const char *lag_number)
    {
      if(strcmp(port_row->name, if_name) == 0)
      {
-        /* check if ACL is configured on this port
-         * if ACL is applied then we don't allow adding
-         * this port to lag
-         */
-        if (check_acl_configuration(port_row))
-        {
-            vty_out(vty, "Unable to add interface %s to lag %s, "
-                         "ACL is configured on interface.\n",if_name, lag_name);
-            cli_do_config_abort(status_txn);
-            /* ovs-appctl return success since this is a business logic
-             * validation and above message should help user
-             * understand the issue.
-             */
-            return CMD_SUCCESS;
-        }
-
         remove_port_reference(port_row);
         ovsrec_port_delete(port_row);
         break;
@@ -1553,78 +1558,124 @@ DEFUN (cli_lacp_show_configuration,
 static int
 lacp_show_aggregates(const char *lag_name)
 {
-   const struct ovsrec_port *lag_port = NULL;
-   const struct ovsrec_interface *if_row = NULL;
-   const char *heartbeat_rate = NULL;
-   bool fallback = false;
-   const char *aggregate_mode = NULL;
-   const char *hash = NULL;
-   char * tmp_hash = NULL;
-   bool show_all = false;
-   bool port_found = false;
-   int k = 0;
+    const struct ovsrec_port *lag_port = NULL;
+    const struct ovsrec_interface *if_row = NULL;
+    const char *heartbeat_rate = NULL;
+    bool fallback = false;
+    const char *aggregate_mode = NULL;
+    const char *hash = NULL;
+    char * tmp_hash = NULL;
+    bool show_all = false;
+    bool port_found = false;
+    int k = 0;
+    vtysh_ovsdb_cbmsg msg;
+    struct feature_sorted_list *list = NULL;
+    const struct shash_node **nodes;
+    int idx, count;
 
-   if(strncmp("all", lag_name, 3) == 0)
-   {
-      show_all = true;
-   }
+    msg.idl = idl;
+    if(strncmp("all", lag_name, 3) == 0) {
+        show_all = true;
+    }
 
-   OVSREC_PORT_FOR_EACH(lag_port, idl)
-   {
-      if(((strncmp(lag_port->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0) && show_all)
-          || (strcmp(lag_port->name, lag_name) == 0))
-      {
-         vty_out(vty, "%s", VTY_NEWLINE);
-         vty_out(vty, "%s%s%s","Aggregate-name        : ", lag_port->name, VTY_NEWLINE);
-         vty_out(vty, "%s","Aggregated-interfaces : ");
-         for (k = 0; k < lag_port->n_interfaces; k++)
-         {
-            if_row = lag_port->interfaces[k];
-            vty_out(vty, "%s ", if_row->name);
-         }
-         vty_out(vty, "%s", VTY_NEWLINE);
-         heartbeat_rate = smap_get(&lag_port->other_config, "lacp-time");
-         if(heartbeat_rate)
-            vty_out(vty, "%s%s%s", "Heartbeat rate        : ",heartbeat_rate, VTY_NEWLINE);
-         else
-            vty_out(vty, "%s%s%s", "Heartbeat rate        : ",
-                         PORT_OTHER_CONFIG_LACP_TIME_SLOW, VTY_NEWLINE);
+    idx = count = 0;
+    list = vtysh_intf_lag_context_init(&msg);
+    nodes = list->nodes;
+    count = list->count;
 
-         fallback = smap_get_bool(&lag_port->other_config, "lacp-fallback-ab", false);
-         vty_out(vty, "%s%s%s", "Fallback              : ",(fallback)?"true":"false", VTY_NEWLINE);
+    if (list != NULL) {
+        do {
+            lag_port = nodes[idx]->data;
 
-         hash = smap_get(&lag_port->other_config, "bond_mode");
-         if(hash) {
-            tmp_hash = lacp_remove_lb_hash_suffix(hash);
-            if (tmp_hash) {
-                vty_out(vty, "%s%s%s", "Hash                  : ",tmp_hash, VTY_NEWLINE);
-                free(tmp_hash);
-                tmp_hash = NULL;
+            vty_out(vty, "%s", VTY_NEWLINE);
+            vty_out(vty,
+                    "%s%s%s",
+                    "Aggregate-name        : ",
+                    lag_port->name,
+                    VTY_NEWLINE);
+
+            vty_out(vty, "%s","Aggregated-interfaces : ");
+            for (k = 0; k < lag_port->n_interfaces; k++) {
+                if_row = lag_port->interfaces[k];
+                vty_out(vty, "%s ", if_row->name);
             }
-         }
-         else {
-            vty_out(vty, "%s%s%s", "Hash                  : ", LAG_LB_ALG_L3, VTY_NEWLINE);
-         }
 
-         aggregate_mode = lag_port->lacp;
-         if(aggregate_mode)
-            vty_out(vty, "%s%s%s", "Aggregate mode        : ",aggregate_mode, VTY_NEWLINE);
-         else
-            vty_out(vty, "%s%s%s", "Aggregate mode        : ","off", VTY_NEWLINE);
-         vty_out(vty, "%s", VTY_NEWLINE);
+            vty_out(vty, "%s", VTY_NEWLINE);
+            heartbeat_rate = smap_get(&lag_port->other_config,
+                                      PORT_OTHER_CONFIG_MAP_LACP_TIME);
+            if (heartbeat_rate) {
+                vty_out(vty,
+                        "%s%s%s",
+                        "Heartbeat rate        : ",
+                        heartbeat_rate,
+                        VTY_NEWLINE);
+            } else {
+                vty_out(vty,
+                "%s%s%s",
+                "Heartbeat rate        : ",
+                PORT_OTHER_CONFIG_LACP_TIME_SLOW,
+                VTY_NEWLINE);
+            }
 
-         if(!show_all)
-         {
-            port_found = true;
-            break;
-         }
-      }
-   }
+            fallback = smap_get_bool(&lag_port->other_config,
+                                     PORT_OTHER_CONFIG_LACP_FALLBACK,
+                                     false);
+            vty_out(vty,
+                    "%s%s%s",
+                    "Fallback              : ",
+                    (fallback) ? "true" : "false",
+                    VTY_NEWLINE);
 
-   if(!show_all && !port_found)
-      vty_out(vty, "Specified LAG port doesn't exist.\n");
+            hash = smap_get(&lag_port->other_config,
+                            PORT_OTHER_CONFIG_MAP_BOND_MODE);
+            if (hash) {
+                tmp_hash = lacp_remove_lb_hash_suffix(hash);
+                if (tmp_hash) {
+                    vty_out(vty,
+                            "%s%s%s",
+                            "Hash                  : ",
+                            tmp_hash,
+                            VTY_NEWLINE);
+                    free(tmp_hash);
+                    tmp_hash = NULL;
+                }
+            } else {
+                vty_out(vty,
+                        "%s%s%s",
+                        "Hash                  : ",
+                        LAG_LB_ALG_L3,
+                        VTY_NEWLINE);
+            }
 
-   return CMD_SUCCESS;
+            aggregate_mode = lag_port->lacp;
+            if (aggregate_mode) {
+                vty_out(vty,
+                        "%s%s%s",
+                        "Aggregate mode        : ",
+                        aggregate_mode,
+                        VTY_NEWLINE);
+            } else {
+                vty_out(vty,
+                        "%s%s%s",
+                        "Aggregate mode        : ",
+                        "off",
+                        VTY_NEWLINE);
+            }
+            vty_out(vty, "%s", VTY_NEWLINE);
+
+            if (!show_all) {
+                port_found = true;
+                break;
+            }
+            idx++;
+
+        } while (idx < count);
+    }
+
+    if (!show_all && !port_found)
+        vty_out(vty, "Specified LAG port doesn't exist.\n");
+
+    return CMD_SUCCESS;
 }
 
 DEFUN (cli_lacp_show_all_aggregates,
@@ -2705,7 +2756,8 @@ void cli_pre_init(void)
 
   retval = install_show_run_config_context(e_vtysh_interface_lag_context,
                                   &vtysh_intf_lag_context_clientcallback,
-                                  NULL, NULL);
+                                  &vtysh_intf_lag_context_init,
+                                  &vtysh_intf_lag_context_exit);
   if(e_vtysh_ok != retval)
   {
     vtysh_ovsdb_config_logmsg(VTYSH_OVSDB_CONFIG_ERR,
