@@ -54,21 +54,44 @@ class LACPCliTest(OpsVsiTest):
             'Test to create LAG Port - FAILED!!'
         return True
 
-    def showLacpAggregates(self):
+    def showLAGsinOrder(self):
         info('''
 ########## Test Show lacp aggregates command ##########
 ''')
         lag_port_found_in_cmd = False
         s1 = self.net.switches[0]
         s1.cmdCLI('conf t')
+        s1.cmdCLI('interface lag 21')
         s1.cmdCLI('interface lag 2')
+        s1.cmdCLI('interface lag 5')
+        s1.cmdCLI('exit')
         out = s1.cmdCLI('do show lacp aggregates')
         lines = out.split('\n')
+        success = 0
         for line in lines:
             if 'lag2' in line:
-                lag_port_found_in_cmd = True
-        assert (lag_port_found_in_cmd is True), \
-            'Test Show lacp aggregates command - FAILED!!'
+                success += 1
+            if 'lag5' in line and success == 1:
+                success += 1
+            if 'lag21' in line and success == 2:
+                success += 1
+        assert success == 3,\
+            'Test Show lacp aggregates in order - FAILED!!'
+        info('''
+########## Test Show running-config command ##########
+''')
+        out = s1.cmdCLI('do show running-config')
+        lines = out.split('\n')
+        success = 0
+        for line in lines:
+            if 'interface lag 2' in line:
+                success += 1
+            if 'interface lag 5' in line and success == 1:
+                success += 1
+            if 'interface lag 21' in line and success == 2:
+                success += 1
+        assert success == 3,\
+            'Test Show running-config in order - FAILED!!'
         return True
 
     def deleteLagPort(self):
@@ -762,8 +785,8 @@ class Test_lacp_cli:
 ########## Test to create LAG Port - SUCCESS! ##########
 ''')
 
-    def test_showLacpAggregates(self):
-        if self.test.showLacpAggregates():
+    def test_showLAGsinOrder(self):
+        if self.test.showLAGsinOrder():
             info('''
 ########## Test Show lacp aggregates command - SUCCESS! ##########
 ''')
