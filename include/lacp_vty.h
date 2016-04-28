@@ -41,4 +41,6 @@ bool lacp_exceeded_maximum_lag(void);
 int vtysh_init_intf_lag_context_clients();
 char * lacp_remove_lb_hash_suffix(const char * lb_hash);
 
+const struct shash_node **sort_lag_ports(const struct shash *sh);
+
 #endif /* _LACP_VTY_H */

@@ -58,6 +58,54 @@
 VLOG_DEFINE_THIS_MODULE(vtysh_lacp_cli);
 extern struct ovsdb_idl *idl;
 
+/* qsort comparator function.
+ */
+int
+compare_nodes_by_lag_in_numerical(const void *a_, const void *b_)
+{
+    const struct shash_node *const *a = a_;
+    const struct shash_node *const *b = b_;
+    uint lag_1, lag_2;
+
+    sscanf((*a)->name, "lag%d", &lag_1);
+    sscanf((*b)->name, "lag%d", &lag_2);
+
+    if (lag_1 > lag_2) {
+        return 1;
+    }
+    else if (lag_1 < lag_2) {
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * Sorting function for lag number
+ * on success, returns sorted interface list.
+ */
+const struct shash_node **
+sort_lag_ports(const struct shash *sh)
+{
+    if (shash_is_empty(sh)) {
+        return NULL;
+    } else {
+        const struct shash_node **nodes;
+        struct shash_node *node;
+
+        size_t i, n;
+
+        n = shash_count(sh);
+        nodes = xmalloc(n * sizeof *nodes);
+        i = 0;
+        SHASH_FOR_EACH (node, sh) {
+            nodes[i++] = node;
+        }
+        ovs_assert(i == n);
+        qsort(nodes, n, sizeof *nodes, compare_nodes_by_lag_in_numerical);
+        return nodes;
+    }
+}
+
 bool
 lacp_exceeded_maximum_lag()
 {
@@ -2662,7 +2710,7 @@ void cli_pre_init(void)
 
   retval = install_show_run_config_context(e_vtysh_interface_lag_context,
                                   &vtysh_intf_lag_context_clientcallback,
-                                  NULL, NULL);
+                                  &vtysh_intf_lag_context_init, &vtysh_intf_lag_context_exit);
   if(e_vtysh_ok != retval)
   {
     vtysh_ovsdb_config_logmsg(VTYSH_OVSDB_CONFIG_ERR,
