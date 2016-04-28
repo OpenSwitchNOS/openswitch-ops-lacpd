@@ -61,14 +61,19 @@ class LACPCliTest(OpsVsiTest):
         lag_port_found_in_cmd = False
         s1 = self.net.switches[0]
         s1.cmdCLI('conf t')
+        s1.cmdCLI('interface lag 21')
         s1.cmdCLI('interface lag 2')
+        s1.cmdCLI('exit')
         out = s1.cmdCLI('do show lacp aggregates')
         lines = out.split('\n')
+        success = 0
         for line in lines:
             if 'lag2' in line:
-                lag_port_found_in_cmd = True
-        assert (lag_port_found_in_cmd is True), \
-            'Test Show lacp aggregates command - FAILED!!'
+                success += 1
+            if 'lag21' in line and success == 1:
+                success += 1
+        assert success == 2,\
+            'Test Show lacp aggregates in order - FAILED!!'
         return True
 
     def deleteLagPort(self):
