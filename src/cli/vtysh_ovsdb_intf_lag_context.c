@@ -33,8 +33,11 @@
 #include "vtysh/utils/vlan_vtysh_utils.h"
 #include "vtysh/utils/intf_vtysh_utils.h"
 #include "vtysh/utils/system_vtysh_utils.h"
+
 #include "lacp_vty.h"
 #include "qos_lag.h"
+
+static struct shash sorted_lag_ports;
 
 /*-----------------------------------------------------------------------------
 | Function : vtysh_ovsdb_intftable_parse_vlan
@@ -109,103 +112,145 @@ vtysh_ovsdb_porttable_parse_vlan(const char *if_name,
 }
 
 /*-----------------------------------------------------------------------------
+| Function : vtysh_intf_lag_context_init
+| Responsibility : Used for LAG related initial config
+| Parameters :
+|     vtysh_ovsdb_cbmsg_ptr p_msg   : Used for idl operations
+| Return : LAG list sorted
+-----------------------------------------------------------------------------*/
+struct feature_sorted_list *
+vtysh_intf_lag_context_init(void *p_private)
+{
+    vtysh_ovsdb_cbmsg_ptr p_msg = (vtysh_ovsdb_cbmsg *)p_private;
+    const struct ovsrec_port *port_row = NULL;
+    const struct shash_node **nodes;
+    struct feature_sorted_list *sorted_list = NULL;
+    int count;
+
+    shash_init(&sorted_lag_ports);
+
+    OVSREC_PORT_FOR_EACH(port_row, p_msg->idl)
+    {
+        if (strncmp(port_row->name, LAG_PORT_NAME_PREFIX,
+            LAG_PORT_NAME_PREFIX_LENGTH) == 0) {
+            shash_add(&sorted_lag_ports, port_row->name, (void *)port_row);
+        }
+    }
+
+    nodes = sort_lag_ports(&sorted_lag_ports);
+    count = shash_count(&sorted_lag_ports);
+    sorted_list = (struct feature_sorted_list *)
+                   malloc (sizeof(struct feature_sorted_list));
+    if (sorted_list != NULL) {
+        sorted_list->nodes = nodes;
+        sorted_list->count = count;
+    }
+    return sorted_list;
+}
+
+/*--------------------------------------------------------------------
 | Function : vtysh_intf_lag_context_clientcallback
 | Responsibility : client callback routine
 | Parameters :
 |     void *p_private : void type object typecast to required
 | Return : vtysh_ret_val
------------------------------------------------------------------------------*/
+--------------------------------------------------------------------*/
 vtysh_ret_val
 vtysh_intf_lag_context_clientcallback(void *p_private)
 {
-  vtysh_ovsdb_cbmsg_ptr p_msg = (vtysh_ovsdb_cbmsg *)p_private;
-  const char *data = NULL;
-  const struct ovsrec_port *port_row = NULL;
-  char * hash_prefix = NULL;
-  int i;
+    vtysh_ovsdb_cbmsg_ptr p_msg = (vtysh_ovsdb_cbmsg *)p_private;
+    const char *data = NULL;
+    const struct ovsrec_port *port_row = (struct ovsrec_port *)
+                                          p_msg->feature_row;
+    char * hash_prefix = NULL;
+    int i;
 
-  OVSREC_PORT_FOR_EACH(port_row, p_msg->idl)
-  {
-    if(strncmp(port_row->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0)
-    {
       /* Print the LAG port name because lag port is present. */
-      vtysh_ovsdb_cli_print(p_msg, "interface lag %d",
-                          atoi(&port_row->name[LAG_PORT_NAME_PREFIX_LENGTH]));
+    vtysh_ovsdb_cli_print(p_msg, "interface lag %d",
+                      atoi(&port_row->name[LAG_PORT_NAME_PREFIX_LENGTH]));
 
-      data = port_row->admin;
-      if(data && strncmp(data,
-                         OVSREC_PORT_ADMIN_UP,
-                         strlen(OVSREC_PORT_ADMIN_UP)) == 0) {
-          vtysh_ovsdb_cli_print(p_msg, "%4s%s", "", "no shutdown");
-      }
+    data = port_row->admin;
+    if (data && strncmp(data,
+                        OVSREC_PORT_ADMIN_UP,
+                        strlen(OVSREC_PORT_ADMIN_UP)) == 0) {
+        vtysh_ovsdb_cli_print(p_msg, "%4s%s", "", "no shutdown");
+    }
 
-      if (check_port_in_bridge(port_row->name))
-      {
-          vtysh_ovsdb_cli_print(p_msg, "%4s%s", "", "no routing");
-          vtysh_ovsdb_porttable_parse_vlan(port_row->name, p_msg);
-      }
-      data = port_row->lacp;
-      if(data && strcmp(data, OVSREC_PORT_LACP_OFF) != 0)
-      {
+    if (check_port_in_bridge(port_row->name))
+    {
+        vtysh_ovsdb_cli_print(p_msg, "%4s%s", "", "no routing");
+        vtysh_ovsdb_porttable_parse_vlan(port_row->name, p_msg);
+    }
+    data = port_row->lacp;
+    if (data && strcmp(data, OVSREC_PORT_LACP_OFF) != 0) {
         vtysh_ovsdb_cli_print(p_msg, "%4slacp mode %s"," ",data);
-      }
-      data = NULL;
-      data = smap_get(&port_row->other_config, "bond_mode");
-      if(data)
-      {
+    }
+    data = NULL;
+    data = smap_get(&port_row->other_config, "bond_mode");
+    if (data) {
         hash_prefix = lacp_remove_lb_hash_suffix(data);
         if (hash_prefix) {
             vtysh_ovsdb_cli_print(p_msg, "%4shash %s"," ",hash_prefix);
             free(hash_prefix);
             hash_prefix = NULL;
         }
-      }
-      data = NULL;
-      data = smap_get(&port_row->other_config, "lacp-fallback-ab");
-      if(data)
-      {
+    }
+    data = NULL;
+    data = smap_get(&port_row->other_config, "lacp-fallback-ab");
+    if (data) {
         if (VTYSH_STR_EQ(data, "true"))
         {
-          vtysh_ovsdb_cli_print(p_msg, "%4slacp fallback"," ");
+            vtysh_ovsdb_cli_print(p_msg, "%4slacp fallback"," ");
         }
-      }
-      data = NULL;
-      data = smap_get(&port_row->other_config, "lacp-time");
-      if(data)
-      {
-        vtysh_ovsdb_cli_print(p_msg, "%4slacp rate %s"," ",data);
-      }
-
-      data = NULL;
-      data = port_row->ip4_address;
-      if (data) {
-          vtysh_ovsdb_cli_print(p_msg, "%4sip address %s"," ",data);
-      }
-
-      for (i = 0; i < port_row->n_ip4_address_secondary; i++) {
-         vtysh_ovsdb_cli_print(p_msg, "%4sip address %s secondary"," ",
-                               port_row->ip4_address_secondary[i]);
-      }
-
-      data = NULL;
-      data = port_row->ip6_address;
-      if (data) {
-          vtysh_ovsdb_cli_print(p_msg, "%4sipv6 address %s", " ",data);
-      }
-
-      for (i = 0; i < port_row->n_ip6_address_secondary; i++) {
-         vtysh_ovsdb_cli_print(p_msg, "%4sipv6 address %s secondary", " ",
-                               port_row->ip6_address_secondary[i]);
-      }
-
-      qos_trust_lag_show_running_config(port_row);
-      qos_cos_lag_show_running_config(port_row);
-      qos_dscp_lag_show_running_config(port_row);
-      qos_apply_lag_show_running_config(port_row);
     }
-  }
+    data = NULL;
+    data = smap_get(&port_row->other_config, "lacp-time");
+    if (data) {
+        vtysh_ovsdb_cli_print(p_msg, "%4slacp rate %s"," ",data);
+    }
 
-  return e_vtysh_ok;
+    data = NULL;
+    data = port_row->ip4_address;
+    if (data) {
+        vtysh_ovsdb_cli_print(p_msg, "%4sip address %s"," ",data);
+    }
+
+    for (i = 0; i < port_row->n_ip4_address_secondary; i++) {
+        vtysh_ovsdb_cli_print(p_msg, "%4sip address %s secondary"," ",
+                              port_row->ip4_address_secondary[i]);
+    }
+
+    data = NULL;
+    data = port_row->ip6_address;
+    if (data) {
+        vtysh_ovsdb_cli_print(p_msg, "%4sipv6 address %s", " ",data);
+    }
+
+    for (i = 0; i < port_row->n_ip6_address_secondary; i++) {
+        vtysh_ovsdb_cli_print(p_msg, "%4sipv6 address %s secondary", " ",
+                               port_row->ip6_address_secondary[i]);
+    }
+
+    qos_trust_lag_show_running_config(port_row);
+    qos_cos_lag_show_running_config(port_row);
+    qos_dscp_lag_show_running_config(port_row);
+    qos_apply_lag_show_running_config(port_row);
+
+    return e_vtysh_ok;
+}
+
+/*--------------------------------------------------------------------
+| Function : vtysh_intf_lag_context_exit
+| Responsibility : release used list for sorted lag ports
+| Parameters :
+|     feature_sorted_list *list : list of LAG ports
+--------------------------------------------------------------------*/
+void
+vtysh_intf_lag_context_exit(struct feature_sorted_list *list)
+{
+   shash_destroy(&sorted_lag_ports);
+   free(list->nodes);
+   free(list);
 }
 
 /*-----------------------------------------------------------------------------
