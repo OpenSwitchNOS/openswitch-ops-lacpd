@@ -345,7 +345,75 @@ def sw_wait_until_ready(sws, intfs, max_retries=30):
         sleep(1)
 
 
-# Add a new Interface to the existing bond.
+def sw_wait_until_one_sm_ready(sws, intfs, ready, max_retries=30):
+    """Verify that one 'intfs' reaches 'ready'.
+
+    We need to verify that at least one interface in 'intf' has the status
+    'read'. The interface number will be returned
+    """
+    all_intfs = []
+    retries = 0
+    intf_fallback_enabled = 0
+
+    for sw in sws:
+        all_intfs += [[sw, intf, False] for intf in intfs]
+
+    # One interface shall be True
+    while not any(intf[2] for intf in all_intfs):
+        # Retrieve all arrays that have False
+        not_ready = filter(lambda intf: not intf[2], all_intfs)
+
+        assert retries is not max_retries, \
+            "Exceeded max retries. SM never achieved status: %s" % ready
+
+        for sm in not_ready:
+            cmd = 'get interface %s lacp_status:actor_state' % sm[1]
+
+            """
+            If you want to print the output remove or set 'silent' to False
+
+            It was removed because of the frequency of 'ovs-vsctl' calls to
+            validate SM status and constant prints will make test output
+            ilegible
+            """
+            out = sm[0](cmd, shell='vsctl', silent=False)
+            sm[2] = bool(re.match(ready, out))
+
+            if sm[2]:
+                intf_fallback_enabled = sm[1]
+
+        retries += 1
+        sleep(1)
+
+    return intf_fallback_enabled
+
+
+def sw_wait_until_ready(sws, intfs, max_retries=30):
+    all_intfs = []
+    retries = 0
+
+    for sw in sws:
+        all_intfs += [[sw, intf, False] for intf in intfs]
+
+    # All arrays shall be True
+    while not all(intf[2] for intf in all_intfs):
+        # Retrieve all arrays that have False
+        not_ready = filter(lambda intf: not intf[2], all_intfs)
+
+        assert retries is not max_retries, \
+            "\n%s\nExceeded max retries," % not_ready
+
+        for sm in not_ready:
+            cmd = 'get interface %s hw_bond_config' % sm[1]
+
+            out = sm[0](cmd, shell='vsctl', silent=False)
+
+            sm[2] = 'rx_enabled="true"' in out and 'tx_enabled="true"' in out
+
+        retries += 1
+        sleep(1)
+
+
 def add_intf_to_bond(sw, bond_name, intf_name):
 
     print("Adding interface %s to LAG %s \n" %
@@ -382,3 +450,29 @@ def enable_intf_list(sw, intf_list):
 def disable_intf_list(sw, intf_list):
     for intf in intf_list:
         sw_set_intf_user_config(sw, intf, ['admin=down'])
+
+
+def sw_wait_until_ready(sws, intfs, max_retries=30):
+    all_intfs = []
+    retries = 0
+
+    for sw in sws:
+        all_intfs += [[sw, intf, False] for intf in intfs]
+
+    # All arrays shall be True
+    while not all(intf[2] for intf in all_intfs):
+        # Retrieve all arrays that have False
+        not_ready = filter(lambda intf: not intf[2], all_intfs)
+
+        assert retries is not max_retries, \
+            "All interfaces are not up, test cannot continue from here!"
+
+        for sm in not_ready:
+            cmd = 'get interface %s link_state' % sm[1]
+
+            out = sm[0](cmd, shell='vsctl', silent=False)
+
+            sm[2] = 'up' in out
+
+        retries +=1
+        sleep(1)

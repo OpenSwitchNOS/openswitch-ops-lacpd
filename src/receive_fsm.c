@@ -123,13 +123,25 @@ static FSM_ENTRY receive_machine_fsm_table[RECV_FSM_NUM_INPUTS]
 /*****************************************************************************/
 /* Input Event E8 - Begin = TRUE                                             */
 /*****************************************************************************/
-  {{RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}, // Begin state
-   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}, // current
-   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}, // expired
-   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}, // defaulted
-   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}, // LACP_disabled
-   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}, // port_disabled
-   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}} // initialize
+  {{RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE},  // Begin state
+   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE},  // current
+   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE},  // expired
+   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE},  // defaulted
+   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE},  // LACP_disabled
+   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE},  // port_disabled
+   {RECV_FSM_INITIALIZE_STATE, ACTION_INITIALIZE}}, // initialize
+
+/*****************************************************************************/
+/* Input Event E9 - Fallback changed                                         */
+/*****************************************************************************/
+  {{RECV_FSM_RETAIN_STATE,        NO_ACTION},            // Begin state
+   {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // current
+   {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // expired
+   {RECV_FSM_DEFAULTED_STATE,     ACTION_DEFAULTED},     // defaulted
+   {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // LACP_disabled
+   {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // port_disabled
+   {RECV_FSM_RETAIN_STATE,        NO_ACTION}}            // initialize
+
 };
 
 
@@ -368,19 +380,34 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
     update_Default_Selected(plpinfo);
     recordDefault(plpinfo);
 
-    // OpenSwitch - We enter defaulted state when we time out waiting for LACPDU
-    // on this port.  This probably means far end does not support LACP.  We
-    // need to default partner to be in-sync & collecting/distributing so that
-    // we'll form a single LAG & pass traffic.  This could also be done by
-    // changing the "partner_admin_port_state" default values, but ANVL doesn't
-    // like that.  So we make the change to oper_state here. */
-    plpinfo->partner_oper_port_state.synchronization = TRUE;
-    plpinfo->partner_oper_port_state.collecting      = TRUE;
-    plpinfo->partner_oper_port_state.distributing    = TRUE;
-    plpinfo->partner_oper_port_state.defaulted       = FALSE;
-    plpinfo->partner_oper_port_state.expired         = FALSE;
+    if (plpinfo->fallback_enabled) {
 
-    plpinfo->actor_oper_port_state.expired = FALSE;
+        // OpenSwitch - We enter defaulted state when we time out waiting for
+        // LACPDU on this port.  This probably means far end does not support
+        // LACP. We need to default partner to be in-sync &
+        // collecting/distributing so that we'll form a single LAG & pass
+        // traffic. This could also be done by changing the
+        // "partner_admin_port_state" default values, but ANVL doesn't like
+        // that. So we make the change to oper_state here.
+        plpinfo->partner_oper_port_state.synchronization = TRUE;
+        plpinfo->partner_oper_port_state.collecting      = TRUE;
+        plpinfo->partner_oper_port_state.distributing    = TRUE;
+        plpinfo->partner_oper_port_state.defaulted       = FALSE;
+        plpinfo->partner_oper_port_state.expired         = FALSE;
+
+        plpinfo->actor_oper_port_state.expired = FALSE;
+
+    }
+    else {
+
+        // If fallback is not enabled we should not create a default partner
+        // in sync or collecting/distributing
+        plpinfo->partner_oper_port_state.synchronization = FALSE;
+        plpinfo->partner_oper_port_state.collecting      = FALSE;
+        plpinfo->partner_oper_port_state.distributing    = FALSE;
+        plpinfo->partner_oper_port_state.defaulted       = TRUE;
+        plpinfo->partner_oper_port_state.expired         = TRUE;
+    }
 
     LAG_selection(plpinfo); // OPS_TODO: Check if this is ok
 
@@ -396,7 +423,13 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
                      plpinfo->mux_fsm_state,
                      plpinfo);
     }
+    // If the interface is not in-sync and selected (attached) we have to
+    // move it to detached
+    else {
 
+        plpinfo->lacp_control.selected = UNSELECTED;
+        plpinfo->lacp_control.ready_n = FALSE;
+    }
     if (plpinfo->debug_level & DBG_RX_FSM) {
         RDBG("%s : exit\n", __FUNCTION__);
     }
