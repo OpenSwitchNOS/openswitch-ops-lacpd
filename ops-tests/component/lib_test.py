@@ -351,3 +351,29 @@ def sw_wait_until_one_sm_ready(sws, intfs, ready, max_retries=30):
         sleep(1)
 
     return intf_fallback_enabled
+
+
+def sw_wait_until_ready(sws, intfs, max_retries=30):
+    all_intfs = []
+    retries = 0
+
+    for sw in sws:
+        all_intfs += [[sw, intf, False] for intf in intfs]
+
+    # All arrays shall be True
+    while not all(intf[2] for intf in all_intfs):
+        # Retrieve all arrays that have False
+        not_ready = filter(lambda intf: not intf[2], all_intfs)
+
+        assert retries is not max_retries, \
+            "Exceeded max retries, test cannot continue from here"
+
+        for sm in not_ready:
+            cmd = 'get interface %s hw_bond_config' % sm[1]
+
+            out = sm[0](cmd, shell='vsctl', silent=False)
+
+            sm[2] = 'rx_enabled="true"' in out and 'tx_enabled="true"' in out
+
+        retries +=1
+        sleep(1)
