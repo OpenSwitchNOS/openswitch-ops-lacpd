@@ -34,7 +34,7 @@
 /*****************************************************************************/
 /*                   MACROS DEFINING ACTIONS FOR RECV FSM                    */
 /*****************************************************************************/
-#define RECV_FSM_NUM_INPUTS  8
+#define RECV_FSM_NUM_INPUTS  9
 #define RECV_FSM_NUM_STATES  7
 
 #define ACTION_CURRENT 1

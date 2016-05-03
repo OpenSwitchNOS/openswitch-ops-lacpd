@@ -1263,7 +1263,7 @@ update_interface_hw_bond_config_map_entry(struct iface_data *idp,
  */
 static void
 update_port_fallback_flag(const struct ovsrec_port *row,
-                          struct port_data *portp)
+                          struct port_data *portp, bool lacp_changed)
 {
     const char *ovs_fallback = NULL;
     bool ovs_fallback_enabled = false;
@@ -1287,11 +1287,10 @@ update_port_fallback_flag(const struct ovsrec_port *row,
             ovs_fallback_enabled = true;
         }
     }
-
-    if (ovs_fallback_enabled != portp->fallback_enabled) {
+    if (ovs_fallback_enabled != portp->fallback_enabled || lacp_changed) {
+        portp->fallback_enabled = ovs_fallback_enabled;
         SHASH_FOR_EACH_SAFE(node, next, &portp->cfg_member_ifs) {
             idp = shash_find_data(&all_interfaces, node->name);
-
             if (idp) {
                 send_fallback_status_msg(idp, ovs_fallback_enabled);
             }
@@ -1475,6 +1474,7 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
     size_t i;
     const char *cp;
     char agg_key[AGG_KEY_MAX_LENGTH];
+    bool lacp_changed = false;
 
     VLOG_DBG("%s: port %s, n_interfaces=%d",
              __FUNCTION__, row->name, (int)row->n_interfaces);
@@ -1551,6 +1551,7 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
                  row->name, lacp_mode_str(portp->lacp_mode),
                  lacp_mode_str(lacp_mode));
 
+        lacp_changed = true;
         /* LACP mode changed.  In either case, mark all existing interfaces
          * as ineligible to detach them first.  Then the interfaces will be
          * reconfigured based on the new LACP mode. */
@@ -1766,7 +1767,7 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
         }
 
         /* Update Fallback flag, it could be toggled on OVSDB */
-        update_port_fallback_flag(row, portp);
+        update_port_fallback_flag(row, portp, lacp_changed);
     }
 
     /* Destroy the shash of the IDL interfaces. */
