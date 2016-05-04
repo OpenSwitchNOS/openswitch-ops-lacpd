@@ -471,3 +471,11 @@ def enable_intf_list(sw, intf_list):
 def disable_intf_list(sw, intf_list):
     for intf in intf_list:
         sw_set_intf_user_config(sw, intf, ['admin=down'])
+
+
+# Verify lag port fallback key
+def verify_port_fallback_key(sw, lag, key, expected,  msg):
+    result = timed_compare(sw_get_port_state_bs,
+                           (sw, lag, ['other_config:' + key]),
+                           verify_compare_value, [expected])
+    assert result == (True, [expected]), msg
