@@ -122,6 +122,14 @@ def sw_get_port_state(params):
     return out
 
 
+def sw_get_port_state_bs(params):
+    c = "get port " + str(params[1])
+    for f in params[2]:
+        c += " " + f
+    out = params[0](c, shell='vsctl').replace('"', '').splitlines()
+    return out
+
+
 # Create a bond/lag/trunk in the OVS-DB.
 def sw_create_bond(s1, bond_name, intf_list, lacp_mode="off"):
     print("Creating LAG " + bond_name + " with interfaces: " +
@@ -351,3 +359,11 @@ def sw_wait_until_one_sm_ready(sws, intfs, ready, max_retries=30):
         sleep(1)
 
     return intf_fallback_enabled
+
+
+# Verify lag port fallback key
+def verify_port_fallback_key(sw, lag, key, expected,  msg):
+    result = timed_compare(sw_get_port_state_bs,
+                           (sw, lag, ['other_config:' + key]),
+                           verify_compare_value, [expected])
+    assert result == (True, [expected]), msg
