@@ -12,6 +12,7 @@ LACP Fallback Tests
 - [Fallback enabled and toggle admin flag](#fallback-enabled-and-toggle-admin-flag)
 - [Fallback enabled and toggle lacp flag as active](#fallback-enabled-and-toggle-lacp-flag-as-active)
 - [Fallback enabled and toggle lacp flag as passive](#fallback-enabled-and-toggle-lacp-flag-as-passive)
+- [LACP fallback mode and timeout CLI commands](#lacp-fallback-mode-and-timeout-CLI-commands)
 
 ## Fallback Disabled and toggle admin flag
 ### Objective
@@ -965,3 +966,77 @@ the expected flags enabled when LAG 1 is disabled on switch 2.
 the expected flags enabled when LAG 1 is disabled on switch 1.
 - At least one interface state machine does not fulfill with all the expected
 flags enabled when both LAGs 1 are enabled on both switches.
+
+
+# LACP fallback mode and timeout CLI commands
+### Objective
+Verify LACP fallback mode and timeout CLI commands set ovsdb lacp_fallback_mode
+and lacp_fallback_timeout values properly.
+### Requirements
+ - Modular framework
+ - Script is in ops-tests/component/test_lacp_ct_vtysh_fallback.py
+
+### Setup
+#### Topology Diagram
+```
++------------+
+|            |
+|     s1     |
+|            |
++------------+
+```
+
+### Description
+1. Create one dynamic LAG in the switch.
+Fallback mode:
+*  Check the lacp_fallback_mode for the LAG.
+*  Execute CLI command "lacp fallback mode all_active".
+*  Check the lacp_fallback_mode for the LAG.
+*  Execute CLI command "lacp fallback mode priority".
+*  Check the lacp_fallback_mode for the LAG.
+*  Execute CLI command "lacp fallback mode all_active".
+*  Check the lacp_fallback_mode for the LAG.
+*  Execute CLI command "no lacp fallback mode all_active".
+*  Check the lacp_fallback_mode for the LAG.
+Fallback timeout:
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "lacp_fallback_timeout 900".
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "lacp_fallback_timeout 1".
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "no lacp_fallback_timeout 2".
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "no lacp_fallback_timeout 901".
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "no lacp_fallback_timeout 0".
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "no lacp_fallback_timeout 1".
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "lacp_fallback_timeout 901".
+*  Check the lacp_fallback_timeout for the LAG.
+*  Execute CLI command "lacp_fallback_timeout 0".
+*  Check the lacp_fallback_timeout for the LAG.
+
+### Test Result Criteria
+#### Test Pass Criteria
+Fallback mode:
+- Initial lacp_fallback_mode value is empty.
+- When fallback mode is configured as all_active, lacp_fallback_mode value is "all_active".
+- When fallback mode is configured as priority or no all_active, lacp_fallback_mode value is empty.
+Fallback timeout:
+- Initial lacp_fallback_timeout value is empty.
+- When fallback timeout is configured as some value between 1 and 900, lacp_fallback_timeout value is set to the configured value.
+- It is not allowed to configure fallback timeout to 901 or to 0.
+- It is not allowed to run "no lacp fallback timeout <value>" with a different value than the one already configured.
+- When "no lacp fallback timeout <value>" is executed with the configured value, lacp_fallback_timeout value is empty.
+#### Test Fail Criteria
+Fallback mode:
+- Initial lacp_fallback_mode value is not empty.
+- When fallback mode is configured as all_active, lacp_fallback_mode value is not "all_active".
+- When fallback mode is configured as priority or no all_active, lacp_fallback_mode value is not empty.
+Fallback timeout:
+- Initial lacp_fallback_timeout value is not empty.
+- When fallback timeout is configured as some value between 1 and 900, lacp_fallback_timeout value is not set to the configured value.
+- It is allowed to configure fallback timeout to 901 or to 0.
+- It is allowed to run "no lacp fallback timeout <value>" with a different value than the one already configured.
+- When "no lacp fallback timeout <value>" is executed with the configured value, lacp_fallback_timeout value is not empty.

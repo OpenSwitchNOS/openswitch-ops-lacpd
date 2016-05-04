@@ -351,3 +351,19 @@ def sw_wait_until_one_sm_ready(sws, intfs, ready, max_retries=30):
         sleep(1)
 
     return intf_fallback_enabled
+
+
+# Verify lag port fallback mode
+def verify_port_fallback_mode(sw, lag, expected,  msg):
+    result = timed_compare(sw_get_port_state_bs,
+                           (sw, lag, ['other_config:lacp_fallback_mode']),
+                           verify_compare_value, [expected])
+    assert result == (True, [expected]), msg
+
+
+# Verify lag port fallback timeout
+def verify_port_fallback_timeout(sw, lag, expected,  msg):
+    result = timed_compare(sw_get_port_state_bs,
+                           (sw, lag, ['other_config:lacp_fallback_timeout']),
+                           verify_compare_value, [expected])
+    assert result == (True, [expected]), msg
