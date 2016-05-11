@@ -82,6 +82,7 @@ sw2:1 -- hs2:1
 """
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_delete_invalid_lag(topology):
 
     sw1 = topology.get('sw1')

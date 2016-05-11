@@ -71,6 +71,7 @@ def get_average_lacpd_sent_pdus(sw, lag_id):
     return sent_pdus_sum/count
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_lacpd_heartbeat(topology):
     """
     Tests LACP heartbeat average rate (slow/fast)

@@ -34,6 +34,7 @@ test_lag_ifs = ['1', '2']
 system_mac = 'aa:bb:cc:dd:ee:99'
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_lacpd_ct_system_priority(topology, step):
     sw1 = topology.get('sw1')
     assert sw1 is not None

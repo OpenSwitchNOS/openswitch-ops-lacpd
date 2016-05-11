@@ -82,6 +82,7 @@ sw2:1 -- hs2:1
 """
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_l2_l3_switch_case_1(topology):
     """
     Case 1:

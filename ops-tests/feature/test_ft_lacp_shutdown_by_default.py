@@ -55,6 +55,7 @@ sw2:3 -- hs2:1
 """
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_lag_shutdown_by_default(topology):
     """Test LAG with shutdown by default ('no shutdown').
 

@@ -55,6 +55,7 @@ hs2:1 -- ops2:4
 """
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_show_lacp_events(topology):
     """
     Tests output for show events

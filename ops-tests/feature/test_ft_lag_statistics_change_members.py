@@ -406,6 +406,7 @@ def validate_connectivity(hs_list, vlan_id, wait, step):
         )
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_ft_lag_statistics_change_members(topology, step):
     hs1 = topology.get('hs1')
     hs2 = topology.get('hs2')

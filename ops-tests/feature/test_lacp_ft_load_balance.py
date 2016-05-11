@@ -109,6 +109,7 @@ def chg_ip_address(hs, interface, new_ip, old_ip):
        shell='bash')
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 @mark.platform_incompatible(['docker'])
 def test_lacpd_load_balance(topology):
     """

@@ -84,6 +84,7 @@ def get_diagdump_lacp_interfaces(sw):
     return output['Interfaces']
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_lacp_agg_key_move_interface(topology):
     """
     Case 1:
