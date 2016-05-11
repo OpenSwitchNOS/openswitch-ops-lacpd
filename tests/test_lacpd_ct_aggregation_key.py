@@ -747,6 +747,7 @@ class TestLacpAggrKey:
     def test_LAG_created_with_only_one_LAG(self):
         self.test.test_LAG_created_with_only_one_LAG()
 
+    @pytest.mark.skipif(True, reason="Skipping due to instability")
     def test_LAG_with_cross_links(self):
         self.test.test_LAG_with_cross_links()
 
