@@ -60,6 +60,7 @@ sw1:7 -- sw2:5
 """
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability") 
 def test_lacp_different_aggregation_keys(topology):
     """
     Case 4:

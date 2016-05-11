@@ -407,6 +407,7 @@ def verify_lag_statistics(sw_list, hs_list, sw_real_ports, step):
         )
 
 
+@pytest.mark.skipif(True, reason="Skipping due to instability") 
 def test_ft_lag_statistics(topology, step):
     hs1 = topology.get('hs1')
     hs2 = topology.get('hs2')
