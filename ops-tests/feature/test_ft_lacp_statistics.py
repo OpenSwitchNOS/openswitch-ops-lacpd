@@ -54,6 +54,8 @@ from lacp_lib import LOCAL_STATE
 from lacp_lib import REMOTE_STATE
 from lacp_lib import retry_wrapper
 from lacp_lib import compare_lag_interface_basic_settings
+from re import search
+from re import DOTALL
 
 TOPOLOGY = """
 #            +-----------------+
@@ -112,9 +114,102 @@ BASE_IPERF_PORT = 5000
 IPERF_TIME = 30
 IPERF_BW = '10m'
 SW_COUNTERS_DELAY = 20
+IPERF_INSTANCE_ID = 1
+DATAGRAMS_PER_SEC = 850
+DATAGRAM_SIZE_BYTES = 1470
+IPERF_SRV_FILE = '/tmp/iperf_server-{}.log'.format(IPERF_INSTANCE_ID)
+IPERF_CLIENT_FILE = '/tmp/iperf_client-{}.log'.format(IPERF_INSTANCE_ID)
+ERROR_TOLERANCE = 0.01
 
 
-def compare_values(value1, value2, error=0.02):
+@retry_wrapper(
+    'Ensure iperf is turned on',
+    'iperf is not yet ready',
+    5,
+    10)
+def assert_udp_iperf_started(hs, file):
+    # FIX ME
+    res = hs('cat {}'.format(file))
+    # END OF FIX ME
+    search_res = search(r'-+.*UDP buffer size.*-+', res, DOTALL)
+    assert search_res is not None, 'Could not get iperf start information'
+
+
+@retry_wrapper(
+    'Ensure iperf server finished',
+    'iperf server is not yet finished',
+    5,
+    10)
+def assert_iperf_srv_finished_traffic(hs, file, time):
+    # FIX ME
+    res = hs('cat {}'.format(file))
+    # END OF FIX ME
+
+    search_res = search(
+        r'0\.0-{}\.0 sec\s+.*\(.*\)'.format(time),
+        res
+    )
+    assert search_res is not None, 'Could not get iperf finish information'
+
+
+def assert_verify_iperf_traffic_received_mbytes(
+    iperf_output,
+    datagram_size_bytes,
+    datagram_speed,
+    time,
+    error=ERROR_TOLERANCE
+):
+    measure_unit = 'MBytes'
+    assert len(iperf_output['traffic']) != 0,\
+        'No iperf traffic information found'
+    # Verify iperf traffic summary matches expected value
+    last_val = iperf_output['traffic'][
+        str(len(iperf_output['traffic']) - 1)
+    ]['transfer']
+    last_val = last_val.split(' ')
+    assert measure_unit == last_val[1],\
+        ' '.join([
+            'Unit of measure for iperf traffic not',
+            'as expected, Expected {}'.format(measure_unit)
+        ])
+    # get expected value in bytes
+    expected_last_val = datagram_size_bytes * datagram_speed * time
+    # convert to Megabytes
+    expected_last_val = expected_last_val / 1024 / 1024
+    # round to 1 decimal
+    expected_last_val = round(expected_last_val, 1)
+    compare_values(float(last_val[0]), expected_last_val, error)
+
+
+@retry_wrapper(
+    'Ensure interfaces are turned on',
+    'Interfaces not yet ready',
+    5,
+    60)
+def assert_retry_check_interfaces_on(sw_list):
+    for sw in sw_list:
+        validate_turn_on_interfaces(sw, SW_LBL_PORTS)
+
+
+@retry_wrapper(
+    'Obtain interfaces information and verify their consistency',
+    'Information provided by counters is not yet reliable',
+    5,
+    SW_COUNTERS_DELAY)
+def assert_get_and_compare_sw_stats(sw_list, sw_stats):
+    print('Get statistics from switches')
+    for sw in sw_list:
+        sw_stats[sw] = {}
+        for port in SW_LBL_PORTS:
+            sw_stats[sw][port] = sw.libs.vtysh.show_interface(port)
+        sw_stats[sw]['lag{}'.format(LAG_ID)] =\
+            sw.libs.vtysh.show_interface('lag{}'.format(LAG_ID))
+    print('Verify obtained information is consistent')
+    print('Compare counters between siwtches')
+    compare_switches_counters(sw_list, sw_stats)
+
+
+def compare_values(value1, value2, error=ERROR_TOLERANCE):
     value2_max = value2 * (1 + error)
     value2_min = value2 * (1 - error)
     assert value1 <= value2_max, ' '.join(
@@ -246,25 +341,16 @@ def verify_lacp_state(
             )
 
 
-def enable_switches_interfaces(sw_list, step):
+def step_enable_switches_interfaces(sw_list, step):
     step('Enable switches interfaces')
     for sw in sw_list:
         for port in SW_LBL_PORTS:
             turn_on_interface(sw, port)
-    # Defining internal method to use decorator
-
-    @retry_wrapper(
-        'Ensure interfaces are turned on',
-        'Interfaces not yet ready',
-        5,
-        60)
-    def internal_check_interfaces(sw_list):
-        for sw in sw_list:
-            validate_turn_on_interfaces(sw, SW_LBL_PORTS)
-    internal_check_interfaces(sw_list)
+    # Verify interfaces are indeed on
+    assert_retry_check_interfaces_on(sw_list)
 
 
-def configure_lags(sw_list, sw_real_ports, step):
+def step_configure_lags(sw_list, sw_real_ports, step):
     step('Create LAGs')
     for sw, mode in zip(sw_list, ['active', 'passive']):
         create_lag(sw, LAG_ID, mode)
@@ -290,7 +376,7 @@ def configure_lags(sw_list, sw_real_ports, step):
     )
 
 
-def configure_vlans(sw_list, sw_real_ports, step):
+def step_configure_vlans(sw_list, sw_real_ports, step):
     step('Configure VLANs on devices')
     for sw in sw_list:
         # Create VLAN
@@ -314,7 +400,7 @@ def configure_vlans(sw_list, sw_real_ports, step):
         )
 
 
-def configure_workstations(hs_list, step):
+def step_configure_workstations(hs_list, step):
     step('Configure workstations')
     for hs_num, hs in enumerate(hs_list):
         hs.libs.ip.interface(
@@ -324,7 +410,7 @@ def configure_workstations(hs_list, step):
         )
 
 
-def validate_connectivity(hs_list, wait, step):
+def step_validate_connectivity(hs_list, wait, step):
     step('Check workstations connectivity')
     if wait is False:
         check_connectivity_between_hosts(
@@ -352,7 +438,7 @@ def validate_connectivity(hs_list, wait, step):
         )
 
 
-def verify_lag_statistics(sw_list, hs_list, sw_real_ports, step):
+def step_verify_lag_statistics(sw_list, hs_list, sw_real_ports, step):
     sw_stats_before = {}
     sw_stats_after = {}
     modes = ['active', 'passive']
@@ -379,7 +465,13 @@ def verify_lag_statistics(sw_list, hs_list, sw_real_ports, step):
         )
     print('Start iperf servers')
     for i, hs in enumerate(hs_list):
-        hs.libs.iperf.server_start(BASE_IPERF_PORT + i, udp=True)
+        hs.libs.iperf.server_start(
+            BASE_IPERF_PORT + i,
+            udp=True,
+            instance_id=IPERF_INSTANCE_ID
+        )
+        # Verify iperf server has started
+        assert_udp_iperf_started(hs, IPERF_SRV_FILE)
     print('Start traffic transmission')
     for hs, other_base in zip(hs_list, [2, 1]):
         hs.libs.iperf.client_start(
@@ -389,30 +481,25 @@ def verify_lag_statistics(sw_list, hs_list, sw_real_ports, step):
             udp=True,
             bandwidth=IPERF_BW
         )
+        # Verify iperf client has started
+        assert_udp_iperf_started(hs, IPERF_CLIENT_FILE)
     print('Wait for traffic to finish in {} seconds'.format(IPERF_TIME))
     sleep(IPERF_TIME)
     print('Stop iperf')
     for hs in hs_list:
-        hs.libs.iperf.server_stop()
+        # Verify iperf server has finished receiving traffic
+        assert_iperf_srv_finished_traffic(hs, IPERF_SRV_FILE, IPERF_TIME)
+        srv_res = hs.libs.iperf.server_stop(instance_id=IPERF_INSTANCE_ID)
         hs.libs.iperf.client_stop()
+        # Verify traffic was received by server
+        assert_verify_iperf_traffic_received_mbytes(
+            srv_res,
+            DATAGRAM_SIZE_BYTES,
+            DATAGRAMS_PER_SEC,
+            IPERF_TIME
+        )
 
-    @retry_wrapper(
-        'Obtain interfaces information and verify their consistency',
-        'Information provided by counters is not yet reliable',
-        5,
-        SW_COUNTERS_DELAY)
-    def internal_check():
-        print('Get statistics from switches')
-        for sw in sw_list:
-            sw_stats_after[sw] = {}
-            for port in SW_LBL_PORTS:
-                sw_stats_after[sw][port] = sw.libs.vtysh.show_interface(port)
-            sw_stats_after[sw]['lag{}'.format(LAG_ID)] =\
-                sw.libs.vtysh.show_interface('lag{}'.format(LAG_ID))
-        print('Verify obtained information is consistent')
-        print('Compare counters between siwtches')
-        compare_switches_counters(sw_list, sw_stats_after)
-    internal_check()
+    assert_get_and_compare_sw_stats(sw_list, sw_stats_after)
     print('Compare switch counters individually')
     for sw, mode in zip(sw_list, modes):
         print('Verify LAG statistic interface basic settings')
@@ -447,19 +534,19 @@ def test_ft_lacp_statistics(topology, step):
     }
 
     # Enable switches interfaces
-    enable_switches_interfaces([sw1, sw2], step)
+    step_enable_switches_interfaces([sw1, sw2], step)
 
     # Configure dynamic LAGs with members
-    configure_lags([sw1, sw2], sw_real_ports, step)
+    step_configure_lags([sw1, sw2], sw_real_ports, step)
 
     # Add VLAN configuration to LAGs and workstation interfaces
-    configure_vlans([sw1, sw2], sw_real_ports, step)
+    step_configure_vlans([sw1, sw2], sw_real_ports, step)
 
     # Configure workstations
-    configure_workstations([hs1, hs2], step)
+    step_configure_workstations([hs1, hs2], step)
 
     # Validate workstations can communicate
-    validate_connectivity([hs1, hs2], True, step)
+    step_validate_connectivity([hs1, hs2], True, step)
 
     # Obtain and validate LAG statistics
-    verify_lag_statistics([sw1, sw2], [hs1, hs2], sw_real_ports, step)
+    step_verify_lag_statistics([sw1, sw2], [hs1, hs2], sw_real_ports, step)
