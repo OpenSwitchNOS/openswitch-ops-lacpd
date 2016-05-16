@@ -127,6 +127,31 @@ static void LACP_slow_periodic_state_action(lacp_per_port_variables_t *);
 static void LACP_periodic_tx_state_action(lacp_per_port_variables_t *);
 static lacpdu_payload_t *LACP_build_lacpdu_payload(lacp_per_port_variables_t *);
 
+static int check_tlv_length(u_char tlv_type,u_char option_len)
+{
+  u_char correct_len;
+  switch (tlv_type) {
+  case LACP_TLV_ACTOR_INFO:
+      correct_len = LACP_TLV_INFO_LENGTH;
+      break;
+  case LACP_TLV_PARTNER_INFO:
+      correct_len = LACP_TLV_INFO_LENGTH;
+      break;
+  case LACP_TLV_COLLECTOR_INFO:
+      correct_len = LACP_TLV_COLLECTOR_INFO_LENGTH;
+      break;
+  default:
+      correct_len = LACP_TLV_TERMINATOR_INFO_LENGTH;
+  }
+  if (option_len != correct_len) {
+     VLOG_ERR("TLV with incorrect value size=%d correct=%d",
+              option_len, correct_len);
+    return -1;
+  }
+
+  return 0;
+}
+
 /*----------------------------------------------------------------------
  * Function: LACP_periodic_tx_fsm(event, current_state, port_number)
  * Synopsis: Entry routine for periodic tx state machine.
@@ -397,6 +422,24 @@ LACP_transmit_lacpdu(lacp_per_port_variables_t *plpinfo)
         VLOG_ERR("Failed to build LACPDU payload");
         goto exit;
     }
+
+    // If the size of tlv_type is not correct, then don't transmit any LACPDUs.
+    if (!(check_tlv_length(lacpdu_payload->tlv_type_actor,
+          lacpdu_payload->actor_info_length))) {
+        goto exit;
+    }
+    else if (!(check_tlv_length(lacpdu_payload->tlv_type_partner,
+               lacpdu_payload->partner_info_length))) {
+             goto exit;
+    }
+        else if (!(check_tlv_length(lacpdu_payload->tlv_type_collector,
+                   lacpdu_payload->collector_info_length))) {
+                  goto exit;
+        }
+            else if (!(check_tlv_length(lacpdu_payload->tlv_type_terminator,
+                     lacpdu_payload->terminator_length))) {
+                     goto exit;
+            }
 
     // OpenSwitch
     mlacp_tx_pdu((unsigned char *)lacpdu_payload,
