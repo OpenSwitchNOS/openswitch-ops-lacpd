@@ -68,7 +68,8 @@ static void initialize_per_port_variables(
                               int link_speed,
                               int hw_collecting,
                               short sys_priority,
-                              char *sys_id);
+                              char *sys_id,
+                              bool fallback_enabled);
 
 
 /*****************************************************************************
@@ -106,7 +107,8 @@ LACP_initialize_port(port_handle_t lport_handle,
                      int link_speed,
                      int hw_collecting,
                      short sys_priority,
-                     char *sys_id)
+                     char *sys_id,
+                     bool fallback_enabled)
 {
     lacp_per_port_variables_t   *plpinfo;
     lacp_per_port_variables_t   *plpinfo_priority;
@@ -114,6 +116,7 @@ LACP_initialize_port(port_handle_t lport_handle,
     lacp_int_sport_params_t     *placp_sport_params;
     int                         status = R_SUCCESS;
     int                         max_port_priority = MAX_PORT_PRIORITY;
+    int                         intf_max_port_priority = 0;
 
     RENTRY();
 
@@ -134,12 +137,13 @@ LACP_initialize_port(port_handle_t lport_handle,
                     plpinfo_priority->sport_handle == psport->handle &&
                     max_port_priority > plpinfo_priority->actor_admin_port_priority) {
                     max_port_priority = plpinfo_priority->actor_admin_port_priority;
+                    intf_max_port_priority = plpinfo_priority->actor_admin_port_number;
                 }
                 plpinfo_priority = LACP_AVL_NEXT(plpinfo_priority->avlnode);
             }
             placp_sport_params = psport->placp_params;
             placp_sport_params->lacp_params.actor_max_port_priority = max_port_priority;
-
+            placp_sport_params->lacp_params.intf_max_port_priority = intf_max_port_priority;
         }
         VLOG_ERR("Calling LACP_initialize_port when already "
                  "initialized?  port_id=%d  lport=0x%llx",
@@ -212,7 +216,8 @@ LACP_initialize_port(port_handle_t lport_handle,
                                   link_speed,
                                   hw_collecting,
                                   sys_priority,
-                                  sys_id);
+                                  sys_id,
+                                  fallback_enabled);
 
     /***************************************************************************
      *   Register the LACP Mcast address with the L2 Manager,
@@ -347,7 +352,8 @@ initialize_per_port_variables(lacp_per_port_variables_t *plpinfo,
                               int link_speed,
                               int hw_collecting,
                               short sys_priority,
-                              char *sys_id)
+                              char *sys_id,
+                              bool fallback_enabled)
 {
     RENTRY();
 
@@ -383,6 +389,8 @@ initialize_per_port_variables(lacp_per_port_variables_t *plpinfo,
 
     plpinfo->actor_admin_system_variables.system_priority =
         htons(actor_system_priority);
+
+    plpinfo->fallback_enabled = fallback_enabled;
 
     /***************************************************************************
      * Set the actor's port state variables.

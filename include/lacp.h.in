@@ -150,6 +150,12 @@
 #define MARKER_TLV_TYPE                 0x02
 #define MARKER_TLV_INFO_LENGTH          0x10
 
+
+enum fallback_mode {
+    priority = 0,
+    all_access
+};
+
 /*****************************************************************************
  * LAG Id structure.
  *****************************************************************************/
@@ -348,6 +354,7 @@ typedef struct lacp_per_port_variables {
     state_parameters_t partner_oper_port_state;
     system_variables_t partner_admin_system_variables;
     system_variables_t partner_oper_system_variables;
+    bool partner_default;
 
     /********************************************************************
      *  LACP fsm control variables
@@ -407,6 +414,8 @@ typedef struct lacp_per_port_variables {
     int selecting_lag;  /* LAG_selection() in progress */
     int lacp_up;
     bool fallback_enabled;
+    enum fallback_mode fallback_mode;
+    int fallback_timeout;
 
     /********************************************************************
      *  AVL tree related variables
