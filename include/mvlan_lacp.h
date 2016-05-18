@@ -18,6 +18,8 @@
 #define _MVLAN_LACP_H_
 
 #include <pm_cmn.h>
+#include "lacp_cmn.h"
+
 
 /******************************************************************************************/
 /**                             System stuff...                                          **/
@@ -55,6 +57,7 @@ struct MLt_lacp_api__set_lport_overrides {
 #define MLm_vpm_api__unset_lacp_sport_params          17
 #define MLm_vpm_api__set_lacp_lport_params_event      18
 #define MLm_vpm_api__set_lport_fallback_status        19
+#define MLm_vpm_api__set_lport_fallback_params        20
 
 struct MLt_vpm_api__create_sport {
     short type;                       //  The type of super port
@@ -88,6 +91,7 @@ struct MLt_vpm_api__lacp_sport_params {
     int  aggr_type;                   // individual or aggregateable
     int  actor_max_port_priority;     // Max actor port priority in this sport
     int  partner_max_port_priority;   // Max partner port priority in this sport
+    int  intf_max_port_priority;      // Interface with max actor port priority
     int  negation;                    // whether it's negation : unset cmd is
                                       // used only while negating
     int  cookie;                      // Used by the caller to store
@@ -111,6 +115,7 @@ struct MLt_vpm_api__lport_lacp_change {
     int collecting_ready;
     int sys_priority;
     char sys_id[MAC_BYTEADDR_SIZE];
+    bool fallback_enabled;
 };
 
 struct MLt_vpm_api__lport_state_change {
@@ -123,6 +128,8 @@ struct MLt_vpm_api__lport_state_change {
 struct MLt_vpm_api__lport_fallback_status {
     unsigned long long lport_handle;   // The lport to be updated
     int status;                        // Fallback new status
+    enum fallback_mode mode;           // Fallback mode, all active or priority
+    int timeout;                       // Fallback timeout to get expire
 };
 
 // The message give by the LACP module to match the
@@ -141,6 +148,8 @@ struct MLt_vpm_api__lacp_match_params {
                                        // match aggr_type of aggregator
     u_short actor_oper_port_priority;  // Actor port priority
     u_short partner_oper_port_priority;// Partner port priority
+    u_short actor_oper_port_number;
+
     int  actor_aggr_type;              // Individual or aggregatable
     int  partner_aggr_type;            // Individual or aggregatable
     unsigned long long sport_handle;   // will be returned if match is successful,
@@ -176,6 +185,7 @@ typedef struct lacp_sport_params_s {
     int      aggr_type;                 /* whether aggregateable or indiv */
     int      actor_max_port_priority;   /* Priority of the actor port with higher priority */
     int      partner_max_port_priority; /* Priority of the partner port with higher priority */
+    int      intf_max_port_priority;
 } lacp_sport_params_t;
 
 /*********************************************************************

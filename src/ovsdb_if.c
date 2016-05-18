@@ -95,6 +95,9 @@ POOL(port_index, MAX_ENTRIES_IN_POOL);
 
 /*********************************************************/
 
+#define MIN_FALLBACK_TIMEOUT    0
+#define MAX_FALLBACK_TIMEOUT    900
+
 #define LACP_ENABLED_ON_PORT(lpm)    (((lpm) == PORT_LACP_PASSIVE) || \
                                       ((lpm) == PORT_LACP_ACTIVE))
 
@@ -109,6 +112,9 @@ POOL(port_index, MAX_ENTRIES_IN_POOL);
 
 #define IS_VALID_SYS_PRIO(p)       (((p) >= MIN_SYSTEM_LACP_CONFIG_SYSTEM_PRIORITY) && \
                                     ((p) <= MAX_SYSTEM_LACP_CONFIG_SYSTEM_PRIORITY))
+
+#define IS_VALID_TIMEOUT(p)        (((p) >= MIN_FALLBACK_TIMEOUT) && \
+                                    ((p) <= MAX_FALLBACK_TIMEOUT))
 
 /* Scale OVS interface speed number (bps) down to
  * that used by LACP state machine (Mbps). */
@@ -161,6 +167,8 @@ struct port_data {
     int                 sys_prio;           /*!< Port override for system priority */
     char                *sys_id;            /*!< Port override for system mac */
     bool                fallback_enabled ;  /*!< Default = false*/
+    enum fallback_mode  fallback_mode;      /*!< Values= Priority or All Active*/
+    uint16_t            fallback_timeout;   /*!< MinInteger = 0, MaxInteger = 900*/
 };
 
 /* current_status values */
@@ -684,6 +692,7 @@ send_config_lport_msg(struct iface_data *info_ptr)
                     memcpy(msg->sys_id, eth_addr_p, ETH_ALEN);
                 }
             }
+            msg->fallback_enabled = portp->fallback_enabled;
         }
 
         ml_send_event(event);
@@ -803,6 +812,47 @@ send_fallback_status_msg(struct iface_data *info_ptr, bool fallback_status)
         msg->lport_handle = PM_SMPT2HANDLE(0, 0, info_ptr->index,
                                            info_ptr->cycl_port_type);
         msg->status = fallback_status;
+
+        ml_send_event(event);
+    }
+} /* send_fallback_status_msg */
+
+static void
+send_fallback_params_msg(struct iface_data *info_ptr, enum fallback_mode mode,
+                         int timeout)
+{
+    ML_event *event;
+    struct MLt_vpm_api__lport_fallback_status *msg;
+    int msgSize;
+
+    VLOG_DBG("%s: interface=%s, fallback mode=%d, timeout=%d",
+            __FUNCTION__,
+            info_ptr->name,
+            mode,
+            timeout);
+
+    msgSize = sizeof(ML_event)
+        + sizeof(struct MLt_vpm_api__lport_fallback_status);
+
+    event = (ML_event *)alloc_msg(msgSize);
+
+    if (event != NULL) {
+        /*** From CfgMgr peer. ***/
+        event->sender.peer = ml_lport_index;
+        event->msgnum = MLm_vpm_api__set_lport_fallback_params;
+
+        /* Set up msg pointer to just after the event
+         * structure itself. This must be done here since the
+         * sender's event->msg pointer points sender's memory
+         * space, and will result in fatal errors if we try to
+         * access it in LACP process space.
+         */
+        msg = (struct MLt_vpm_api__lport_fallback_status *)(event+1);
+        msg->lport_handle = PM_SMPT2HANDLE(0, 0, info_ptr->index,
+                info_ptr->cycl_port_type);
+
+        msg->mode = mode;
+        msg->timeout = timeout;
 
         ml_send_event(event);
     }
@@ -1265,8 +1315,12 @@ static void
 update_port_fallback_flag(const struct ovsrec_port *row,
                           struct port_data *portp, bool lacp_changed)
 {
-    const char *ovs_fallback = NULL;
-    bool ovs_fallback_enabled = false;
+    const char *ovs_fallback            = NULL;
+    const char *ovs_fallback_mode       = NULL;
+    const char *ovs_fallback_timeout    = NULL;
+    bool ovs_fallback_enabled           = false;
+    enum fallback_mode mode             = FALLBACK_MODE_PRIORITY;
+    int fallback_timeout                = 0;
 
     struct shash_node *node, *next;
     struct iface_data *idp = NULL;
@@ -1279,6 +1333,10 @@ update_port_fallback_flag(const struct ovsrec_port *row,
      */
     ovs_fallback = smap_get(&(row->other_config),
                             PORT_OTHER_CONFIG_LACP_FALLBACK);
+    ovs_fallback_mode = smap_get(&(row->other_config),
+                            PORT_OTHER_CONFIG_MAP_LACP_FALLBACK_MODE);
+    ovs_fallback_timeout = smap_get(&(row->other_config),
+                            PORT_OTHER_CONFIG_MAP_LACP_FALLBACK_TIMEOUT);
 
     if (ovs_fallback) {
         if (strncmp(ovs_fallback,
@@ -1287,12 +1345,41 @@ update_port_fallback_flag(const struct ovsrec_port *row,
             ovs_fallback_enabled = true;
         }
     }
+
+    if (ovs_fallback_mode) {
+        if (strncmp(ovs_fallback_mode,
+                    PORT_OTHER_CONFIG_LACP_FALLBACK_MODE_ALL_ACTIVE,
+                    strlen(PORT_OTHER_CONFIG_LACP_FALLBACK_MODE_ALL_ACTIVE)) == 0) {
+            mode = FALLBACK_MODE_ALL_ACTIVE;
+        }
+    }
+
+    if (ovs_fallback_timeout) {
+        fallback_timeout = atoi(ovs_fallback_timeout);
+        if(!IS_VALID_TIMEOUT(fallback_timeout)) {
+            fallback_timeout = MIN_FALLBACK_TIMEOUT;
+        }
+    }
+
+
     if (ovs_fallback_enabled != portp->fallback_enabled || lacp_changed) {
         portp->fallback_enabled = ovs_fallback_enabled;
         SHASH_FOR_EACH_SAFE(node, next, &portp->cfg_member_ifs) {
             idp = shash_find_data(&all_interfaces, node->name);
             if (idp) {
                 send_fallback_status_msg(idp, ovs_fallback_enabled);
+            }
+        }
+    }
+    if(fallback_timeout != portp->fallback_timeout ||
+       mode != portp->fallback_mode ||
+       lacp_changed) {
+        portp->fallback_mode = mode;
+        portp->fallback_timeout = fallback_timeout;
+        SHASH_FOR_EACH_SAFE(node, next, &portp->cfg_member_ifs) {
+            idp = shash_find_data(&all_interfaces, node->name);
+            if (idp) {
+                send_fallback_params_msg(idp, mode, fallback_timeout);
             }
         }
     }
@@ -2983,6 +3070,14 @@ lacpd_port_dump(struct ds *ds, struct port_data *portp)
     lacpd_lag_member_interfaces_dump(ds, portp);
     ds_put_format(ds, "    interface_count      : %d\n",
                   (int)shash_count(&portp->participant_ifs));
+
+    if(portp->fallback_mode==FALLBACK_MODE_PRIORITY) {
+        ds_put_format(ds, "    fallback mode        : priority\n");
+    } else {
+        ds_put_format(ds, "    fallback mode        : all-active\n");
+    }
+    ds_put_format(ds, "    fallback timeout     : %d\n", portp->fallback_timeout);
+
 } /* lacpd_port_dump */
 
 static void
@@ -3240,6 +3335,10 @@ void lacpd_dump_state_per_interface(struct ds *ds, struct port_data *portp)
                                     lacp_port_variable->lacp_control.port_moved,
                                     lacp_port_variable->lacp_control.ntt,
                                     lacp_port_variable->lacp_control.port_enabled);
+
+                    if (lacp_port_variable->partner_default) {
+                        ds_put_format(ds, "    fallback timeout remaining: %d", lacp_port_variable->fallback_timer_expiry_counter);
+                    }
                     break;
                 }
                 lacp_port_variable = LACP_AVL_NEXT(lacp_port_variable->avlnode);

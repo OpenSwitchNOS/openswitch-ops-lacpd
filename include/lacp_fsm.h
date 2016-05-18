@@ -29,12 +29,13 @@
 #define E7 6
 #define E8 7
 #define E9 8
+#define E10 9
 #define NO_ACTION 0
 
 /*****************************************************************************/
 /*                   MACROS DEFINING ACTIONS FOR RECV FSM                    */
 /*****************************************************************************/
-#define RECV_FSM_NUM_INPUTS  9
+#define RECV_FSM_NUM_INPUTS  10
 #define RECV_FSM_NUM_STATES  7
 
 #define ACTION_CURRENT 1

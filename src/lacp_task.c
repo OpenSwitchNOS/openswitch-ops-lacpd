@@ -52,6 +52,7 @@ const unsigned char default_partner_system_mac[MAC_ADDR_LENGTH] =
  *   Prototypes for static functions
  ****************************************************************************/
 static void periodic_tx_timer_expiry(lacp_per_port_variables_t *);
+static void fallback_timer_expiry(lacp_per_port_variables_t *);
 static void current_while_timer_expiry(lacp_per_port_variables_t *);
 static void mux_wait_while_timer_expiry(lacp_per_port_variables_t *);
 static int LACP_marker_responder(lacp_per_port_variables_t *, void *);
@@ -272,6 +273,7 @@ LACP_current_while_expiry(void)
                    lacp_port->lport_handle);
 
             current_while_timer_expiry(lacp_port);
+            fallback_timer_expiry(lacp_port);
         }
 
         lacp_port = LACP_AVL_NEXT(lacp_port->avlnode);
@@ -280,6 +282,58 @@ LACP_current_while_expiry(void)
     REXIT();
 
 } /* LACP_current_while_expiry */
+
+/*----------------------------------------------------------------------
+ * Function: fallback_timer_expiry(lacp_per_port_variables_t *plpinfo)
+ * Synopsis: Decrements the expiry counter, if greater than 0.
+ *           If counter reaches 0, generates TODO: put something here
+ *
+ * Input  :  lacp_per_port_variables_t *plpinfo
+ * Returns:  void
+ *----------------------------------------------------------------------*/
+static void
+fallback_timer_expiry(lacp_per_port_variables_t *plpinfo)
+{
+    RENTRY();
+
+    RDEBUG(DL_TIMERS, "%s: lport 0x%llx\n", __FUNCTION__, plpinfo->lport_handle);
+
+    if (plpinfo->fallback_timer_expiry_counter > 0) {
+
+        RDEBUG(DL_TIMERS, "fallback_timer %d lport 0x%llx\n",
+                plpinfo->current_while_timer_expiry_counter,
+                plpinfo->lport_handle);
+
+        /********************************************************************
+         * Decrement the expiry counter and if it has reached 0
+         ********************************************************************/
+        plpinfo->fallback_timer_expiry_counter--;
+
+        if (plpinfo->fallback_timer_expiry_counter == 0) {
+            /*********************************************************************
+             *  TODO: do something here
+             *********************************************************************/
+            plpinfo->fallback_timer_expired = true;
+
+            if (plpinfo->debug_level & DBG_RX_FSM) {
+                RDBG("%s : Generate E2 (lport 0x%llx)\n", __FUNCTION__, plpinfo->lport_handle);
+            }
+
+            LACP_receive_fsm(E2,
+                             plpinfo->recv_fsm_state,
+                             NULL,
+                             plpinfo);
+            VLOG_INFO("fall: fallback timer expired!!, do something here");
+        }
+        else {
+            plpinfo->fallback_timer_expired = false;
+        }
+    }
+
+    REXIT();
+
+} /* current_while_timer_expiry */
+
 
 /*----------------------------------------------------------------------
  * Function: current_while_timer_expiry(int port_number)

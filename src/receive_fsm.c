@@ -140,7 +140,18 @@ static FSM_ENTRY receive_machine_fsm_table[RECV_FSM_NUM_INPUTS]
    {RECV_FSM_DEFAULTED_STATE,     ACTION_DEFAULTED},     // defaulted
    {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // LACP_disabled
    {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // port_disabled
-   {RECV_FSM_RETAIN_STATE,        NO_ACTION}}            // initialize
+   {RECV_FSM_RETAIN_STATE,        NO_ACTION}},            // initialize
+
+/*****************************************************************************/
+/* Input Event E10 - Fallback timer expired                                  */
+/*****************************************************************************/
+     {{RECV_FSM_RETAIN_STATE,        NO_ACTION},            // Begin state
+      {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // current
+      {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // expired
+      {RECV_FSM_DEFAULTED_STATE,     ACTION_DEFAULTED},     // defaulted
+      {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // LACP_disabled
+      {RECV_FSM_RETAIN_STATE,        NO_ACTION},            // port_disabled
+      {RECV_FSM_RETAIN_STATE,        NO_ACTION}},           // initialize
 
 };
 
@@ -373,15 +384,43 @@ expired_state_action(lacp_per_port_variables_t *plpinfo)
 static void
 defaulted_state_action(lacp_per_port_variables_t *plpinfo)
 {
+    super_port_t *psport = NULL;
+    lacp_int_sport_params_t *placp_sport_params;
+    int status = R_SUCCESS;
+    //int port;
+    //struct iface_data *idp = NULL;
+
     if (plpinfo->debug_level & DBG_RX_FSM) {
         RDBG("%s : lport_handle 0x%llx\n", __FUNCTION__, plpinfo->lport_handle);
+    }
+
+    status = mvlan_get_sport(plpinfo->sport_handle, &psport, MLm_vpm_api__get_sport);
+
+    if (R_SUCCESS == status) {
+        placp_sport_params = psport->placp_params;
+    }
+
+    if (plpinfo->fallback_enabled
+        && (plpinfo->fallback_mode == FALLBACK_MODE_PRIORITY)
+        && (placp_sport_params->lacp_params.intf_max_port_priority != plpinfo->actor_admin_port_number)
+        && plpinfo->partner_default) {
+        plpinfo->partner_default = false;
+    }
+
+    if (plpinfo->fallback_enabled) {
+        if (((plpinfo->fallback_mode == FALLBACK_MODE_PRIORITY)
+            && (placp_sport_params->lacp_params.intf_max_port_priority == plpinfo->actor_admin_port_number))
+            || (plpinfo->fallback_mode == FALLBACK_MODE_ALL_ACTIVE)) {
+            if (!plpinfo->fallback_timer_expired) {
+                plpinfo->partner_default = true;
+            }
+        }
     }
 
     update_Default_Selected(plpinfo);
     recordDefault(plpinfo);
 
     if (plpinfo->fallback_enabled) {
-
         // OpenSwitch - We enter defaulted state when we time out waiting for
         // LACPDU on this port.  This probably means far end does not support
         // LACP. We need to default partner to be in-sync &
@@ -396,10 +435,10 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
         plpinfo->partner_oper_port_state.expired         = FALSE;
 
         plpinfo->actor_oper_port_state.expired = FALSE;
+        plpinfo->fallback_timer_expiry_counter = plpinfo->ovs_timeout;
 
     }
     else {
-
         // If fallback is not enabled we should not create a default partner
         // in sync or collecting/distributing
         plpinfo->partner_oper_port_state.synchronization = FALSE;
@@ -409,7 +448,14 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
         plpinfo->partner_oper_port_state.expired         = TRUE;
     }
 
-    LAG_selection(plpinfo); // OPS_TODO: Check if this is ok
+    if (placp_sport_params->lacp_params.intf_max_port_priority == plpinfo->actor_admin_port_number){
+        plpinfo->lacp_control.selected = SELECTED;
+        plpinfo->lacp_control.ready_n = TRUE;
+
+        LACP_mux_fsm(E1,
+                     plpinfo->mux_fsm_state,
+                     plpinfo);
+    }
 
     // OpenSwitch - If selected is SELECTED && partner.sync = TRUE
     // generate E5.  This will trigger a transition to coll/dist
@@ -418,18 +464,31 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
     // where ports went down & came back up.
     if ((SELECTED == plpinfo->lacp_control.selected) &&
         (TRUE == plpinfo->partner_oper_port_state.synchronization)) {
-
         LACP_mux_fsm(E5,
                      plpinfo->mux_fsm_state,
                      plpinfo);
     }
-    // If the interface is not in-sync and selected (attached) we have to
-    // move it to detached
     else {
-
         plpinfo->lacp_control.selected = UNSELECTED;
         plpinfo->lacp_control.ready_n = FALSE;
     }
+    db_update_interface(plpinfo);
+
+    //port = PM_HANDLE2PORT(plpinfo->lport_handle);
+    //idp = find_iface_data_by_index(port);
+    /*if (plpinfo->partner_default) {
+        if (log_event("LACP_INTERACE_FALLBACK",
+                    EV_KV("intf_id", "%s",
+                        idp->name),
+                    EV_KV("lag_id", "sport: %d",
+                        idp->cfg_lag_id),
+                    EV_KV("fsm_state", "%s -> %s",
+                        previous_state_string,
+                        current_state_string)) < 0) {
+            VLOG_ERR("Could not log event LACP_PARTNER_TIMEOUT");
+        }
+    }*/
+
     if (plpinfo->debug_level & DBG_RX_FSM) {
         RDBG("%s : exit\n", __FUNCTION__);
     }
@@ -1199,15 +1258,13 @@ recordDefault(lacp_per_port_variables_t *plpinfo)
 
     plpinfo->partner_oper_port_number =
         plpinfo->partner_admin_port_number;
-    plpinfo->partner_oper_port_priority =
-        plpinfo->partner_admin_port_priority;
+    plpinfo->partner_oper_port_priority = 0xfffe;
 
     memcpy((char *)plpinfo->partner_oper_system_variables.system_mac_addr,
            (char *)plpinfo->partner_admin_system_variables.system_mac_addr,
            MAC_ADDR_LENGTH);
 
-    plpinfo->partner_oper_system_variables.system_priority =
-        plpinfo->partner_admin_system_variables.system_priority;
+    plpinfo->partner_oper_system_variables.system_priority = 0xfffe;
     plpinfo->partner_oper_key =
         plpinfo->partner_admin_key;
 
@@ -1259,9 +1316,13 @@ static void
 update_Default_Selected(lacp_per_port_variables_t *plpinfo)
 {
     RENTRY();
-
     if (plpinfo->debug_level & DBG_RX_FSM) {
         RDBG("%s : lport_handle 0x%llx\n", __FUNCTION__, plpinfo->lport_handle);
+    }
+
+    if (plpinfo->partner_default) {
+        REXIT();
+        return;
     }
 
     if (plpinfo->partner_oper_port_number !=

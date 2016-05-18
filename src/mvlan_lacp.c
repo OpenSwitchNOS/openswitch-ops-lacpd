@@ -325,7 +325,7 @@ mvlan_set_sport_params(struct MLt_vpm_api__lacp_sport_params *pin_lacp_params)
         placp_sport_params->lacp_params.actor_key = htons(pin_lacp_params->actor_key);
         placp_sport_params->lacp_params.actor_max_port_priority = htons(pin_lacp_params->actor_max_port_priority);
         placp_sport_params->lacp_params.partner_max_port_priority = htons(pin_lacp_params->partner_max_port_priority);
-
+        placp_sport_params->lacp_params.intf_max_port_priority = htons(pin_lacp_params->intf_max_port_priority);
         // Also, by default set the aggr_type as Aggregateable.
         placp_sport_params->lacp_params.aggr_type = LACP_LAG_DEFAULT_AGGR_TYPE;
 
@@ -355,6 +355,7 @@ mvlan_set_sport_params(struct MLt_vpm_api__lacp_sport_params *pin_lacp_params)
 
         if (pin_lacp_params->flags & LACP_LAG_ACTOR_PORT_PRIORITY_FIELD_PRESENT) {
             placp_sport_params->lacp_params.actor_max_port_priority = pin_lacp_params->actor_max_port_priority;
+            placp_sport_params->lacp_params.intf_max_port_priority = pin_lacp_params->intf_max_port_priority;
         }
 
         if (pin_lacp_params->flags & LACP_LAG_PARTNER_PORT_PRIORITY_FIELD_PRESENT) {
@@ -607,7 +608,8 @@ mvlan_select_aggregator(struct MLt_vpm_api__lacp_match_params *placp_match_param
                 // attached to a sport
                 ptemp_lacp_sport_params->lacp_params.actor_max_port_priority =
                                     placp_match_params->actor_oper_port_priority;
-
+                ptemp_lacp_sport_params->lacp_params.intf_max_port_priority =
+                                    placp_match_params->actor_oper_port_number;
                 // Check if the partner priority is higher than the current max partner priority
                 // In partial match we always update partner max port priority
                 if (PARTIAL_MATCH == match ||
@@ -648,6 +650,8 @@ mvlan_select_aggregator(struct MLt_vpm_api__lacp_match_params *placp_match_param
 
                     ptemp_lacp_sport_params->lacp_params.actor_max_port_priority =
                                                          placp_match_params->actor_oper_port_priority;
+                    ptemp_lacp_sport_params->lacp_params.intf_max_port_priority =
+                                                        placp_match_params->actor_oper_port_number;
                 }
                 if ((ptemp_lacp_sport_params->lacp_params.flags & LACP_LAG_PARTNER_PORT_PRIORITY_FIELD_PRESENT) &&
                     ptemp_lacp_sport_params->lacp_params.partner_max_port_priority >
@@ -1031,6 +1035,7 @@ mvlan_api_clear_sport_params(unsigned long long sport_handle)
     sport_lacp_params->lacp_params.partner_key = 0;
     sport_lacp_params->lacp_params.actor_max_port_priority= 0;
     sport_lacp_params->lacp_params.partner_max_port_priority= 0;
+    sport_lacp_params->lacp_params.intf_max_port_priority = 0;
     sport_lacp_params->lacp_params.flags &= ~(LACP_LAG_PARTNER_SYSPRI_FIELD_PRESENT         |
                                               LACP_LAG_PARTNER_SYSID_FIELD_PRESENT          |
                                               LACP_LAG_PARTNER_KEY_FIELD_PRESENT            |
