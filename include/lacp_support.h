@@ -82,7 +82,8 @@ extern void LACP_initialize_port(port_handle_t lport_handle,
                                  int link_speed,
                                  int hw_collecting,
                                  short sys_priority,
-                                 char *sys_id);
+                                 char *sys_id,
+                                 bool fallback_enabled);
 extern void LACP_update_port_params(port_handle_t lport_handle,
                                     unsigned long flags,
                                     short data, int hw_collecting);

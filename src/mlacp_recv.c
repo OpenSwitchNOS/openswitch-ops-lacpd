@@ -302,7 +302,8 @@ mlacpVapiLportEvent(struct ML_event *pevent)
         RDEBUG(DL_LACP_RCV, "LACP message on lport_handle 0x%llx"
                " port_id 0x%x, flags 0x%x, state %d, port_key 0x%x, pri 0x%x,"
                " activity %d, timeout %d, aggregation %d,"
-               " link_state 0x%x link_speed 0x%x collecting_ready=%d\n",
+               " link_state 0x%x link_speed 0x%x collecting_ready=%d,"
+               "  fallback=%d\n",
                placp_msg->lport_handle,
                placp_msg->port_id,
                placp_msg->flags,
@@ -314,7 +315,8 @@ mlacpVapiLportEvent(struct ML_event *pevent)
                placp_msg->lacp_aggregation,
                placp_msg->link_state,
                placp_msg->link_speed,
-               placp_msg->collecting_ready);
+               placp_msg->collecting_ready,
+               placp_msg->fallback_enabled);
 
         // Check if an individual parameter that can be updated without having
         // to reinitialize the state machine is changed. If so, call the update
@@ -338,7 +340,8 @@ mlacpVapiLportEvent(struct ML_event *pevent)
                                  placp_msg->link_speed,
                                  placp_msg->collecting_ready,
                                  (short)placp_msg->sys_priority,
-                                 placp_msg->sys_id);
+                                 placp_msg->sys_id,
+                                 placp_msg->fallback_enabled);
         }
     } else {
         RDEBUG(DL_LACP_RCV, "disable LACP on lport_handle 0x%llx"

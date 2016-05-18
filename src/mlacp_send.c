@@ -79,6 +79,7 @@ mlacp_blocking_send_select_aggregator(LAG_t *const lag,
 
     match_params.actor_oper_port_priority = lacp_port->actor_admin_port_priority;
     match_params.partner_oper_port_priority = lacp_port->partner_oper_port_priority;
+    match_params.actor_oper_port_number = lacp_port->actor_oper_port_number;
 
     match_params.partner_system_priority =
         lacp_port->partner_oper_system_variables.system_priority;

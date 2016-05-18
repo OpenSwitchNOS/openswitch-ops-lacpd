@@ -373,15 +373,34 @@ expired_state_action(lacp_per_port_variables_t *plpinfo)
 static void
 defaulted_state_action(lacp_per_port_variables_t *plpinfo)
 {
+    super_port_t *psport = NULL;
+    lacp_int_sport_params_t *placp_sport_params;
+    int status = R_SUCCESS;
+
     if (plpinfo->debug_level & DBG_RX_FSM) {
         RDBG("%s : lport_handle 0x%llx\n", __FUNCTION__, plpinfo->lport_handle);
+    }
+
+    status = mvlan_get_sport(plpinfo->sport_handle, &psport, MLm_vpm_api__get_sport);
+
+    if (R_SUCCESS == status) {
+        placp_sport_params = psport->placp_params;
+    }
+
+    if ((placp_sport_params->lacp_params.intf_max_port_priority != plpinfo->actor_admin_port_number)
+        && plpinfo->partner_default) {
+        plpinfo->partner_default = false;
+    }
+
+    if ((placp_sport_params->lacp_params.intf_max_port_priority == plpinfo->actor_admin_port_number)
+        && (plpinfo->fallback_enabled)) {
+        plpinfo->partner_default = true;
     }
 
     update_Default_Selected(plpinfo);
     recordDefault(plpinfo);
 
     if (plpinfo->fallback_enabled) {
-
         // OpenSwitch - We enter defaulted state when we time out waiting for
         // LACPDU on this port.  This probably means far end does not support
         // LACP. We need to default partner to be in-sync &
@@ -396,10 +415,8 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
         plpinfo->partner_oper_port_state.expired         = FALSE;
 
         plpinfo->actor_oper_port_state.expired = FALSE;
-
     }
     else {
-
         // If fallback is not enabled we should not create a default partner
         // in sync or collecting/distributing
         plpinfo->partner_oper_port_state.synchronization = FALSE;
@@ -409,7 +426,14 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
         plpinfo->partner_oper_port_state.expired         = TRUE;
     }
 
-    LAG_selection(plpinfo); // OPS_TODO: Check if this is ok
+    if (placp_sport_params->lacp_params.intf_max_port_priority == plpinfo->actor_admin_port_number){
+        plpinfo->lacp_control.selected = SELECTED;
+        plpinfo->lacp_control.ready_n = TRUE;
+
+        LACP_mux_fsm(E1,
+                     plpinfo->mux_fsm_state,
+                     plpinfo);
+    }
 
     // OpenSwitch - If selected is SELECTED && partner.sync = TRUE
     // generate E5.  This will trigger a transition to coll/dist
@@ -418,7 +442,6 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
     // where ports went down & came back up.
     if ((SELECTED == plpinfo->lacp_control.selected) &&
         (TRUE == plpinfo->partner_oper_port_state.synchronization)) {
-
         LACP_mux_fsm(E5,
                      plpinfo->mux_fsm_state,
                      plpinfo);
@@ -426,7 +449,6 @@ defaulted_state_action(lacp_per_port_variables_t *plpinfo)
     // If the interface is not in-sync and selected (attached) we have to
     // move it to detached
     else {
-
         plpinfo->lacp_control.selected = UNSELECTED;
         plpinfo->lacp_control.ready_n = FALSE;
     }
@@ -1199,15 +1221,13 @@ recordDefault(lacp_per_port_variables_t *plpinfo)
 
     plpinfo->partner_oper_port_number =
         plpinfo->partner_admin_port_number;
-    plpinfo->partner_oper_port_priority =
-        plpinfo->partner_admin_port_priority;
+    plpinfo->partner_oper_port_priority = 0xfffe;
 
     memcpy((char *)plpinfo->partner_oper_system_variables.system_mac_addr,
            (char *)plpinfo->partner_admin_system_variables.system_mac_addr,
            MAC_ADDR_LENGTH);
 
-    plpinfo->partner_oper_system_variables.system_priority =
-        plpinfo->partner_admin_system_variables.system_priority;
+    plpinfo->partner_oper_system_variables.system_priority = 0xfffe;
     plpinfo->partner_oper_key =
         plpinfo->partner_admin_key;
 
@@ -1259,9 +1279,13 @@ static void
 update_Default_Selected(lacp_per_port_variables_t *plpinfo)
 {
     RENTRY();
-
     if (plpinfo->debug_level & DBG_RX_FSM) {
         RDBG("%s : lport_handle 0x%llx\n", __FUNCTION__, plpinfo->lport_handle);
+    }
+
+    if (plpinfo->partner_default) {
+        REXIT();
+        return;
     }
 
     if (plpinfo->partner_oper_port_number !=

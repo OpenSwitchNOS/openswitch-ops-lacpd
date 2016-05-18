@@ -161,6 +161,8 @@ struct port_data {
     int                 sys_prio;           /*!< Port override for system priority */
     char                *sys_id;            /*!< Port override for system mac */
     bool                fallback_enabled ;  /*!< Default = false*/
+    enum fallback_mode  fallback_mode;      /*!< Values= Priority or All Active*/
+    uint16_t            fallback_timeout;   /*!< MinInteger = 0, MaxInteger = 900*/
 };
 
 /* current_status values */
@@ -684,6 +686,7 @@ send_config_lport_msg(struct iface_data *info_ptr)
                     memcpy(msg->sys_id, eth_addr_p, ETH_ALEN);
                 }
             }
+            msg->fallback_enabled = portp->fallback_enabled;
         }
 
         ml_send_event(event);
