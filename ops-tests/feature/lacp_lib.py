@@ -853,3 +853,36 @@ def validate_diagdump_lacp_interfaces(diagdump_output, lag_id,
         assert interface in expected_participant,\
             ('Interface %s should not be in participant interfaces for LAG %s'
              % (interface, lag_id))
+
+
+def verify_connectivity_between_hosts(h1, h1_ip, h2, h2_ip, success=True):
+    @retry_wrapper(
+        'Ensure connectivity between hosts',
+        'LAG not yet ready',
+        5,
+        40)
+    def check_ping(h1, h1_ip, h2, h2_ip, success):
+        check_connectivity_between_hosts(h1, h1_ip, h2, h2_ip, success=success)
+    check_ping(h1, h1_ip, h2, h2_ip, success=success)
+
+
+def verify_connectivity_between_switches(s1, s1_ip, s2, s2_ip, success=True):
+    @retry_wrapper(
+        'Ensure connectivity between hosts',
+        'LAG not yet ready',
+        5,
+        40)
+    def check_ping(s1, s1_ip, s2, s2_ip, success):
+        check_connectivity_between_switches(s1, s1_ip, s2, s2_ip, success=success)
+    check_ping(s1, s1_ip, s2, s2_ip, success=success)
+
+
+def verify_turn_on_interfaces(sw, intf_list):
+    @retry_wrapper(
+        'Ensure interfaces are turn on',
+        'Interfaces not yet ready',
+        5,
+        60)
+    def check_interfaces(sw):
+        validate_turn_on_interfaces(sw, intf_list)
+    check_interfaces(sw)
