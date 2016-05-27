@@ -791,6 +791,12 @@ def verify_connectivity_between_hosts(h1, h1_ip, h2, h2_ip, success=True):
     check_ping(h1, h1_ip, h2, h2_ip, success=success)
 
 
+def verify_show_lacp_aggregates(sw, lag_name, lag_mode):
+    lacp_map = sw.libs.vtysh.show_lacp_aggregates()
+    assert lacp_map[lag_name]['mode'] == lag_mode,\
+        'LACP mode is not %s' % lag_mode
+
+
 def compare_lag_interface_basic_settings(
     lag_stats,
     lag_id,
