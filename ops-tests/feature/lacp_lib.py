@@ -150,6 +150,17 @@ def validate_turn_off_interfaces(sw, interfaces):
             "Interface state for " + intf + "is up"
 
 
+def verify_turn_off_interfaces(sw, intf_list):
+    @retry_wrapper(
+        'Ensure interfaces are turn off',
+        'Interfaces not yet ready',
+        5,
+        60)
+    def check_interfaces(sw):
+        validate_turn_off_interfaces(sw, intf_list)
+    check_interfaces(sw)
+
+
 def validate_local_key(map_lacp, lag_id):
     assert map_lacp['local_key'] == lag_id,\
         "Actor Key is not the same as the LAG ID"
