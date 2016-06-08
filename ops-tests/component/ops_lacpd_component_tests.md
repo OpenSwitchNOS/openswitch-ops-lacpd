@@ -5,6 +5,8 @@ LACP Component Tests
 
 - [Static LAG port and member interfaces bond_status](#static-lag-port-and-member-interfaces-bond-status)
 - [LACP port and member interfaces bond_status](#lacp-port-and-member-interfaces-bond-status)
+- [Static LAG port bond_status:bond_speed](#static-lag-port-bond-status-bond-speed)
+- [Dynamic LAG port bond_status:bond_speed](#dynamic-lag-port-bond-status-bond-speed)
 
 
 # Static LAG port and member interfaces bond_status
@@ -188,6 +190,144 @@ Note: Unless explicitly stated, the following steps are only executed in switch 
   bond_status is not up.
 - When an interface is not part of any LAG, its bond_status is not empty.
 - When a LAG has no member interfaces its bond_status is not down.
+
+
+
+
+# Static LAG port bond_status:bond_speed
+### Objective
+Verify static LAG port bond_status:bond_speed key value is correctly updated according
+to the speed of the eligible interfaces.
+### Requirements
+ - Modular framework
+ - Script is in ops-tests/component/test_lag_ct_bond_speed.py
+
+### Setup
+#### Topology Diagram
+```
++------------+
+|            |
+|     s1     |
+|            |
++--1--2--3---+
+   |  |  |  
+   |  |  |  
+   |  |  |  
+   |  |  |  
++--1--2--3---+
+|            |
+|     s2     |
+|            |
++------------+
+```
+
+### Description
+1. Turn on all the interfaces used in this test.
+*  Make sure all the interfaces used in the test operate at the same link speed.
+*  Create 1 static LAG in switch 1 and 2 with interfaces 1, 2, and 3. Make sure
+   the interfaces are added to the LAG in that specific order.
+
+Note: The following steps are only executed in switch 1.
+
+*  Check the value of the bond_speed key for the LAG port.
+*  Change the speed of interface 3 to a value different than link speed of
+   interfaces 1 and 2.
+*  Check the value of the bond_speed key for the LAG port.
+*  Remove all the interfaces of the LAG.
+*  Add back the interfaces to the LAG in this order: 3, 2 and 1.
+*  Check the value of the bond_speed key for the LAG port.
+*  Remove interface 3 from the LAG.
+*  Check the value of the bond_speed key for the LAG port.
+*  Remove all the interfaces of the LAG.
+*  Check the value of the bond_speed key for the LAG port.
+
+### Test Result Criteria
+#### Test Pass Criteria
+- When all the interfaces of the LAG operate at the same link speed, then the
+  value of bond_speed is equal to the interfaces link speed.
+- When the interfaces of the LAG operate at a different link speed, then the
+  value of bond_speed is equal to the link speed of the first added interfaces.
+- When the first interface added to the LAG is removed, the bond_speed is
+  updated to the link speed of the remaining interfaces.
+- When the LAG has no member interfaces, the value of bond_speed is empty.
+#### Test Fail Criteria
+- When all the interfaces of the LAG operate at the same link speed, then the
+  value of bond_speed is not equal to the interfaces link speed.
+- When the interfaces of the LAG operate at a different link speed, then the
+  value of bond_speed is not equal to the link speed of the first added
+  interfaces.
+- When the first interface added to the LAG is removed, the bond_speed is not
+  updated to the link speed of the remaining interfaces.
+- When the LAG has no member interfaces, the value of bond_speed is not empty.
+
+
+# Dynamic LAG port bond_status:bond_speed
+### Objective
+Verify dynamic LAG port bond_status:bond_speed key value is correctly updated
+according to the speed of the eligible interfaces.
+### Requirements
+ - Modular framework
+ - Script is in ops-tests/component/test_lacp_ct_bond_speed.py
+
+### Setup
+#### Topology Diagram
+```
++------------+
+|            |
+|     s1     |
+|            |
++--1--2--3---+
+   |  |  |  
+   |  |  |  
+   |  |  |  
+   |  |  |  
++--1--2--3---+
+|            |
+|     s2     |
+|            |
++------------+
+```
+
+### Description
+1. Turn on all the interfaces used in this test.
+*  Make sure all the interfaces used in the test operate at the same link speed.
+*  Create 1 dynamic LAG in switch 1 and 2 with interfaces 1, 2, and 3. Make sure
+   the interfaces are added to the LAG in that specific order.
+
+Note: The following steps are only executed in switch 1.
+
+*  Check the value of the bond_speed key for the LAG port.
+*  Change the speed of interface 3 to a value different than link speed of
+   interfaces 1 and 2.
+*  Check the value of the bond_speed key for the LAG port.
+*  Remove all the interfaces of the LAG.
+*  Add back the interfaces to the LAG in this order: 3, 2 and 1.
+*  Check the value of the bond_speed key for the LAG port.
+*  Turn off interface 3.
+*  Check the value of the bond_speed key for the LAG port.
+*  Remove all the interfaces of the LAG.
+*  Check the value of the bond_speed key for the LAG port.
+
+### Test Result Criteria
+#### Test Pass Criteria
+- When all the interfaces of the LAG operate at the same link speed, then the
+  value of bond_speed is equal to the interfaces link speed.
+- When the interfaces of the LAG operate at a different link speed, then the
+  value of bond_speed is equal to the link speed of the first added interfaces.
+- When the first interface added to the LAG is turned off, the bond_speed is
+  updated to the link speed of the remaining interfaces.
+- When the LAG has no member interfaces, the value of bond_speed is empty.
+#### Test Fail Criteria
+- When all the interfaces of the LAG operate at the same link speed, then the
+  value of bond_speed is not equal to the interfaces link speed.
+- When the interfaces of the LAG operate at a different link speed, then the
+  value of bond_speed is not equal to the link speed of the first added
+  interfaces.
+- When the first interface added to the LAG is turned off, the bond_speed is not
+  updated to the link speed of the remaining interfaces.
+- When the LAG has no member interfaces, the value of bond_speed is not empty.
+
+
 LACP Fallback Tests
 ===================
 
