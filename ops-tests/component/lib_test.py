@@ -128,6 +128,26 @@ def sw_get_port_state_bs(params):
     return out
 
 
+def verify_port_bond_speed(sw, lag, speed,  msg):
+    result = timed_compare(sw_get_port_state_bs,
+                           (sw, lag, ['bond_status:bond_speed']),
+                           verify_compare_value, [speed])
+    assert result == (True, [speed]), msg
+
+
+# Verify port bond speed is empty
+def verify_port_bond_speed_empty(sw, lag, msg):
+    result = timed_compare(sw_get_port_state_bs,
+                           (sw, lag, ['bond_status:bond_speed']),
+                           verify_compare_value,
+                           ['ovs-vsctl: no key bond_speed' +
+                            ' in Port record ' + lag +
+                            ' column bond_status'])
+    assert result == (True, ['ovs-vsctl: no key bond_speed' +
+                             ' in Port record ' + lag +
+                             ' column bond_status']), msg
+
+
 # Create a bond/lag/trunk in the OVS-DB.
 def sw_create_bond(s1, bond_name, intf_list, lacp_mode="off"):
     print("Creating LAG " + bond_name + " with interfaces: " +
@@ -434,7 +454,10 @@ def add_intf_to_bond(sw, bond_name, intf_name):
                                        % (intf_name, bond_name)
 
     # Add the given intf_name's UUID to existing Interfaces.
-    intf_list.append(intf_uuid)
+    if (intf_list[0] != ''):
+        intf_list.append(intf_uuid)
+    else:
+        intf_list = [intf_uuid]
 
     # Set the new Interface list in the bond.
     new_intf_str = "[%s]" % (",".join(intf_list))
