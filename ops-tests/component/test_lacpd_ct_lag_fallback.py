@@ -138,7 +138,6 @@ def main_setup(request, topology):
 #                           FALLBACK DISABLED TESTS
 #
 ##############################################################################
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_nf_toggle_admin_flag(topology, step, main_setup):
     """Toggle 'admin' flag.
 
@@ -181,7 +180,6 @@ def test_nf_toggle_admin_flag(topology, step, main_setup):
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_nf_toggle_lacp_flag_active(topology, step, main_setup):
     """Toggle 'lacp' flag to 'active'.
 
@@ -224,7 +222,6 @@ def test_nf_toggle_lacp_flag_active(topology, step, main_setup):
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_nf_toggle_lacp_flag_passive(topology, step, main_setup):
     """Toggle 'lacp' flag to 'passive'.
 
@@ -288,7 +285,6 @@ def test_nf_toggle_lacp_flag_passive(topology, step, main_setup):
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_nf_false_flag_toggle_admin_flag(topology, step, main_setup):
     """Toggle 'admin' flag with 'false' flag.
 
@@ -350,7 +346,6 @@ def test_nf_false_flag_toggle_admin_flag(topology, step, main_setup):
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_nf_false_flag_toggle_lacp_active(topology, step, main_setup):
     """Toggle 'lacp' flag to 'active' with 'false' flag.
 
@@ -413,7 +408,6 @@ def test_nf_false_flag_toggle_lacp_active(topology, step, main_setup):
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_nf_false_flag_toggle_lacp_passive(topology, step, main_setup):
     """Toggle 'lacp' flag to 'passive' with 'false' flag.
 
@@ -499,7 +493,6 @@ def test_nf_false_flag_toggle_lacp_passive(topology, step, main_setup):
 #                           FALLBACK ENABLED TESTS
 #
 ##############################################################################
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_fb_toggle_admin_flag(topology, step, main_setup):
     """Toggle 'admin' flag.
 
@@ -577,7 +570,6 @@ def test_fb_toggle_admin_flag(topology, step, main_setup):
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_fb_toggle_lacp_flag_active(topology, step, main_setup):
     """Toggle 'lacp' flag to 'active'.
 
@@ -658,7 +650,6 @@ def test_fb_toggle_lacp_flag_active(topology, step, main_setup):
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instable enviroment")
 def test_fb_toggle_lacp_flag_passive(topology, step, main_setup):
     """Toggle 'lacp' flag to 'passive'.
 
