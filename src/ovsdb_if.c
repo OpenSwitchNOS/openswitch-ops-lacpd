@@ -161,6 +161,7 @@ struct port_data {
     int                 sys_prio;           /*!< Port override for system priority */
     char                *sys_id;            /*!< Port override for system mac */
     bool                fallback_enabled ;  /*!< Default = false*/
+    bool                mclag_enabled;      /*!< Port override of mclag_enabled */
 };
 
 /* current_status values */
@@ -905,6 +906,7 @@ lacpd_ovsdb_if_init(const char *db_path)
     ovsdb_idl_add_column(idl, &ovsrec_interface_col_other_config);
     ovsdb_idl_add_column(idl, &ovsrec_interface_col_bond_status);
     ovsdb_idl_omit_alert(idl, &ovsrec_interface_col_bond_status);
+    ovsdb_idl_add_column(idl, &ovsrec_interface_col_mclag_status);
 
     /* Initialize LAG ID pool. */
     /* OPS_TODO: read # of LAGs from somewhere? */
@@ -1045,6 +1047,39 @@ add_new_interface(const struct ovsrec_interface *ifrow)
 } /* add_new_interface */
 
 /**
+ * Determine whether the system ID for a given port should be updated
+ * or not. In case it should be updated, set the corresponding new value.
+ *
+ * @return boolean indicating if the system ID changed.
+ */
+bool update_system_id(struct port_data * portp, const char* new_system_id)
+{
+    struct ether_addr *eth_addr_p;
+    struct ether_addr eth_addr;
+    /* If there's a change in the system-id, return true */
+    if ((new_system_id == NULL && portp->sys_id != NULL) ||
+        (new_system_id != NULL && portp->sys_id == NULL) ||
+        (new_system_id != NULL && portp->sys_id != NULL &&
+            strcmp(new_system_id, portp->sys_id) != 0)) {
+        if (new_system_id == NULL) {
+            free(portp->sys_id);
+            portp->sys_id = NULL;
+            return true;
+        } else {
+            /* Convert the string to a mac address. */
+            eth_addr_p = ether_aton_r(new_system_id, &eth_addr);
+            if (eth_addr_p) {
+                /* Save the system-id *after* it's been validated. */
+                free(portp->sys_id);
+                portp->sys_id = strdup(new_system_id);
+                return true;
+            }
+        }
+    }
+    return false;
+} /* update_system_id */
+
+/**
  * Update daemon's internal interface data structures based on the latest
  * data from OVSDB.
  * Takes necessary actions to propagate database changes.
@@ -1112,6 +1147,9 @@ update_interface_cache(void)
             enum ovsrec_interface_duplex_e new_duplex;
             enum ovsrec_interface_link_state_e new_link_state;
             int new_port_id;
+            const char *new_sys_id;
+            struct port_data * portp = NULL;
+            bool mclag_enabled = false;
 
             /* Update actor_priority */
             val = smap_get_int(&(ifrow->other_config),
@@ -1147,10 +1185,22 @@ update_interface_cache(void)
                     new_duplex = INTERFACE_DUPLEX_FULL;
                 }
             }
+
+            portp = idp->port_datap;
+            if (portp != NULL) {
+                mclag_enabled = portp->mclag_enabled;
+            }
+
             /* Update Port Id*/
-            new_port_id = smap_get_int(&(ifrow->other_config),
-                                        INTERFACE_OTHER_CONFIG_MAP_LACP_PORT_ID,
-                                        0);
+            if (!mclag_enabled) {
+                new_port_id = smap_get_int(&(ifrow->other_config),
+                                           INTERFACE_OTHER_CONFIG_MAP_LACP_PORT_ID,
+                                           0);
+            } else {
+                new_port_id = smap_get_int(&(ifrow->mclag_status),
+                                           "actor_port_id",
+                                           0);
+            }
 
             if (!IS_VALID_PORT_ID(new_port_id)) {
                 new_port_id = 0;
@@ -1165,8 +1215,13 @@ update_interface_cache(void)
             }
 
             /* Update Aggregation Key */
-            key_str = smap_get(&(ifrow->other_config),
-                      INTERFACE_OTHER_CONFIG_MAP_LACP_AGGREGATION_KEY);
+            if (!mclag_enabled) {
+                key_str = smap_get(&(ifrow->other_config),
+                                   INTERFACE_OTHER_CONFIG_MAP_LACP_AGGREGATION_KEY);
+            } else {
+                key_str = smap_get(&(ifrow->mclag_status),
+                                   "actor_key");
+            }
             if(key_str)
             {
                 key = atoi(key_str);
@@ -1185,7 +1240,16 @@ update_interface_cache(void)
             }
 
             if (flag) {
+                if (mclag_enabled && update_interface_lag_eligibility(idp)) {
+                    rc++;
+                }
                 send_config_lport_msg(idp);
+            }
+            if (mclag_enabled) {
+                new_sys_id = smap_get(&(ifrow->mclag_status), "actor_system_id");
+                if (update_system_id(portp, new_sys_id)) {
+                    set_port_overrides(portp, idp);
+                }
             }
 
             if ((new_link_state != idp->link_state) ||
@@ -1603,6 +1667,7 @@ update_interface_lag_eligibility(struct iface_data *idp)
     struct port_data *portp;
     bool old_eligible = false;
     bool new_eligible = true;
+    bool mclag_enabled = false;
     int rc = 0;
 
     if (!idp || !idp->port_datap) {
@@ -1649,6 +1714,32 @@ update_interface_lag_eligibility(struct iface_data *idp)
         }
     }
 
+    mclag_enabled = smap_get_bool(&(portp->cfg->other_config),
+                                  "mclag_enabled",
+                                  false);
+    /* If mclag is enabled and mclag port id, actor key or system id is
+     * missing, then we set the interface as not eligible. */
+    if (mclag_enabled) {
+        int mclag_port_id = smap_get_int(&(idp->cfg->mclag_status),
+                                         "actor_port_id",
+                                         0);
+        const char* mclag_actor_key = smap_get(&(idp->cfg->mclag_status),
+                                               "actor_key");
+        const char* mclag_sys_id = smap_get(&(idp->cfg->mclag_status),
+                                            "actor_system_id");
+        if (mclag_port_id == 0
+            || mclag_actor_key == NULL
+            || mclag_sys_id == NULL) {
+            new_eligible = false;
+            if (log_event("MLAG_INFO_INCOMPLETE",
+                          EV_KV("lag_id", "%d", idp->cfg_lag_id),
+                          EV_KV("intf_id", "%s", idp->name)
+                          ) < 0) {
+                VLOG_ERR("Could not log event MLAG_INFO_INCOMPLETE");
+            }
+        }
+    }
+
     VLOG_DBG("%s: interface %s - old_eligible=%d new_eligible=%d",
              __FUNCTION__, idp->name,
              old_eligible, new_eligible);
@@ -1660,6 +1751,97 @@ update_interface_lag_eligibility(struct iface_data *idp)
 
     return rc;
 } /* update_interface_lag_eligibility */
+
+/**
+ * Handles mclag_enabled changes for a given port.
+ *
+ * @param portp pointer to daemon's internal port data struct.
+ * @param new_mclag_enabled new status of mclag_enabled
+ *
+ * @return void
+ */
+void handle_mclag_enabled_change(struct port_data *portp, bool new_mclag_enabled)
+{
+    const struct ovsrec_interface *ifrow;
+    struct shash_node *node, *next;
+    int new_port_id;
+    int new_key = 0;
+    const char* key_str = NULL;
+    bool changed =  false;
+    const char* new_sys_id;
+
+    SHASH_FOR_EACH_SAFE(node, next, &portp->cfg_member_ifs) {
+        struct iface_data *idp = shash_find_data(&all_interfaces, node->name);
+        if (idp) {
+            ifrow = idp->cfg;
+
+            /* Update Sys Id*/
+            if (new_mclag_enabled) {
+                new_sys_id = smap_get(&(ifrow->mclag_status), "actor_system_id");
+                changed = update_system_id(portp, new_sys_id);
+            }
+
+            /* Update Port Id*/
+            if (!new_mclag_enabled) {
+                new_port_id = smap_get_int(&(ifrow->other_config),
+                                           INTERFACE_OTHER_CONFIG_MAP_LACP_PORT_ID,
+                                           0);
+            } else {
+                new_port_id = smap_get_int(&(ifrow->mclag_status),
+                                           "actor_port_id",
+                                           0);
+            }
+
+            if (!IS_VALID_PORT_ID(new_port_id)) {
+                new_port_id = 0;
+            }
+
+            if (new_port_id != idp->port_id) {
+                VLOG_DBG("Interface %s port_id changed in DB: "
+                         "new port_id=%d",
+                         ifrow->name, new_port_id);
+                idp->port_id = new_port_id;
+                changed = true;
+            }
+
+            /* Update key */
+            if (!new_mclag_enabled) {
+                key_str = smap_get(&(ifrow->other_config),
+                          INTERFACE_OTHER_CONFIG_MAP_LACP_AGGREGATION_KEY);
+            } else {
+                key_str = smap_get(&(ifrow->mclag_status),
+                                   "actor_key");
+            }
+
+            if(key_str) {
+                new_key = atoi(key_str);
+
+                if (!IS_VALID_AGGR_KEY(new_key)) {
+                    new_key = -1;
+                }
+            } else {
+                new_key = portp->lag_id;
+            }
+            if (new_key != idp->actor_key) {
+                VLOG_DBG("Interface %s actor_key change in DB: "
+                        "new actor_key=%d",
+                        ifrow->name, new_key);
+                idp->actor_key = new_key;
+                changed = true;
+            }
+
+            if (changed) {
+                send_config_lport_msg(idp);
+            }
+        }
+    }
+    if (log_event("MLAG_CREATED",
+                  EV_KV("lag_id", "%d", portp->lag_id)
+                  ) < 0) {
+        VLOG_ERR("Could not log event MLAG_CREATED");
+    }
+}
+
 
 /**
  * Handles Port related configuration changes for a given port table entry.
@@ -1930,18 +2112,22 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
         /* other_config:lacp-system-id and other_config:lacp-system-priority
          * only make sense if lacp is enabled.
          */
+        bool new_mclag_enabled = false;
         const char *sys_id;
         int sys_prio;
-        struct ether_addr *eth_addr_p;
-        struct ether_addr eth_addr;
         bool changed = false;
 
-        sys_id = smap_get(&(row->other_config),
-                      PORT_OTHER_CONFIG_MAP_LACP_SYSTEM_ID);
+        new_mclag_enabled = smap_get_bool(&(row->other_config),
+                                          "mclag_enabled",
+                                          false);
+        if (new_mclag_enabled != portp->mclag_enabled) {
+            portp->mclag_enabled = new_mclag_enabled;
+            handle_mclag_enabled_change(portp, new_mclag_enabled);
+        }
+
         sys_prio = smap_get_int(&(row->other_config),
                       PORT_OTHER_CONFIG_MAP_LACP_SYSTEM_PRIORITY,
                       0);
-
         /* If there's a change in the system-priority, send the update. */
         if (sys_prio != portp->sys_prio) {
             if (sys_prio == 0 || IS_VALID_SYS_PRIO(sys_prio)) {
@@ -1950,25 +2136,11 @@ handle_port_config(const struct ovsrec_port *row, struct port_data *portp)
             }
         }
 
-        /* If there's a change in the system-id, send the update. */
-        if ((sys_id == NULL && portp->sys_id != NULL) ||
-            (sys_id != NULL && portp->sys_id == NULL) ||
-            (sys_id != NULL && portp->sys_id != NULL &&
-                strcmp(sys_id, portp->sys_id) != 0)) {
-            if (sys_id == NULL) {
-                free(portp->sys_id);
-                portp->sys_id = NULL;
-                changed = true;
-            } else {
-                /* Convert the string to a mac address. */
-                eth_addr_p = ether_aton_r(sys_id, &eth_addr);
-                if (eth_addr_p) {
-                    /* Save the system-id *after* it's been validated. */
-                    free(portp->sys_id);
-                    portp->sys_id = strdup(sys_id);
-                    changed = true;
-                }
-            }
+        if (!new_mclag_enabled) {
+            sys_id = smap_get(&(row->other_config),
+                              PORT_OTHER_CONFIG_MAP_LACP_SYSTEM_ID);
+
+            changed = update_system_id(portp, sys_id);
         }
         if (changed) {
             SHASH_FOR_EACH_SAFE(node, next, &portp->cfg_member_ifs) {
@@ -2049,6 +2221,9 @@ add_new_port(const struct ovsrec_port *port_row)
             return;
         }
         portp->lacp_mode = PORT_LACP_OFF;
+        portp->mclag_enabled = smap_get_bool(&(port_row->other_config),
+                                             "mclag_enabled",
+                                             false);
 
         shash_init(&portp->cfg_member_ifs);
         shash_init(&portp->eligible_member_ifs);
@@ -3501,6 +3676,7 @@ lacpd_state_dump(struct ds *ds, int argc, const char *argv[])
                 && portp->lacp_mode != PORT_LACP_OFF) {
 
                 ds_put_format(ds, "LAG %s:\n", portp->name);
+                ds_put_format(ds, " MCLAG enabled: %s\n", (portp->mclag_enabled)?"true":"false");
                 lacpd_dump_state_per_interface(ds, portp);
             }
         }
@@ -3514,6 +3690,7 @@ lacpd_state_dump(struct ds *ds, int argc, const char *argv[])
                     && portp->lacp_mode != PORT_LACP_OFF) {
 
                     ds_put_format(ds, "LAG %s:\n", portp->name);
+                    ds_put_format(ds, " MCLAG enabled: %s\n", (portp->mclag_enabled)?"true":"false");
                     lacpd_dump_state_per_interface(ds, portp);
                 }
             }
