@@ -434,9 +434,8 @@ def add_intf_to_bond(sw, bond_name, intf_name):
     out = sw(c.format(**locals()), shell='vsctl')
     intf_list = out.rstrip('\r\n').strip("[]").replace(" ", "").split(',')
 
-    assert intf_uuid not in intf_list,\
-        print("Interface %s is already part of %s \n" %
-              (intf_name, bond_name))
+    assert intf_uuid not in intf_list, "Interface %s is already part of %s"\
+                                       % (intf_name, bond_name)
 
     # Add the given intf_name's UUID to existing Interfaces.
     intf_list.append(intf_uuid)
