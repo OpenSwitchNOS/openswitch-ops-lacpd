@@ -118,6 +118,15 @@ compare_lag_id(LAG_Id_t *first_lag_id, LAG_Id_t *second_lag_id)
         return FALSE;
     }
 
+    // Compare local fallback mode
+    if (first_lag_id->fallback_mode != second_lag_id->fallback_mode) {
+        return FALSE;
+    }
+
+    // This flag is used to force the lport to be removed from Lag_t
+    if (first_lag_id->stay_removed != second_lag_id->stay_removed) {
+        return FALSE;
+    }
     return TRUE;
 } // compare_lag_id
 
@@ -210,9 +219,15 @@ LAG_selection(lacp_per_port_variables_t *lacp_port)
             //        results in a LAG being created on our end, but
             //        two separate ports on the far end, causing loss
             //        of traffic.
+            //        We need to allow the LAG aggregation even if the
+            //        far end doesn't run LACP but fallback is active and
+            //        the lport is in defaulted state
+            //
+
             if (0 == memcmp(plp->partner_oper_system_variables.system_mac_addr,
                             default_partner_system_mac,
-                            MAC_ADDR_LENGTH)) {
+                            MAC_ADDR_LENGTH) &&
+                !(plp->is_fallback_active)) {
                 continue;
             }
 
@@ -223,7 +238,6 @@ LAG_selection(lacp_per_port_variables_t *lacp_port)
             lag = plp->lag;
             break;
         }
-
         /*2*/
         if (lag == NULL) {
             // No LAG found with the same LAG id.  Could be the first
@@ -412,7 +426,11 @@ LAG_selection(lacp_per_port_variables_t *lacp_port)
             RDBG("%s : recursive call to LAG_selection\n", __FUNCTION__);
         }
 
-        LAG_selection(lacp_port);
+        // Do not reselect the interface if it should stay removed,
+        // we want this when fallback is active
+        if (!(lacp_port->stay_removed)) {
+            LAG_selection(lacp_port);
+        }
 
         return;
     }
@@ -576,6 +594,8 @@ form_lag_id(lacp_per_port_variables_t *lacp_port)
     }
 
     lagId->fallback = lacp_port->fallback_enabled;
+    lagId->fallback_mode = lacp_port->fallback_mode;
+    lagId->stay_removed = lacp_port->stay_removed;
 
     REXIT();
 

@@ -126,6 +126,11 @@ typedef struct ML_event {
     void *msg;          // struct MLt_$protocol__$type
 } ML_event;
 
+enum fallback_mode {
+    FALLBACK_MODE_PRIORITY = 0,
+    FALLBACK_MODE_ALL_ACTIVE
+};
+
 
 /******************************************************************************************/
 /**                             Misc Utilities...                                        **/
