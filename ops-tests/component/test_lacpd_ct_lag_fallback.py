@@ -14,7 +14,6 @@
 #    under the License.
 
 import pytest
-
 from lib_test import (
     clear_port_parameter,
     print_header,
@@ -65,7 +64,7 @@ test_lag = 'lag1'
 # Everything is working and 'Collecting and Distributing'
 active_ready = '"Activ:1,TmOut:\d,Aggr:1,Sync:1,Col:1,Dist:1,Def:0,Exp:0"'
 # No fallback enabled, interface is 'dead'
-active_no_fallback = '"Activ:1,TmOut:\d,Aggr:1,Sync:0,Col:0,Dist:0,Def:1,Exp:1"'
+active_no_fallback = '"Activ:1,TmOut:\d,Aggr:1,Sync:0,Col:0,Dist:0,Def:1,Exp:0"'
 # Fallback enabled, in 'Defaulted' but 'Collecting and Distributing'
 active_fallback = '"Activ:1,TmOut:\d,Aggr:1,Sync:1,Col:1,Dist:1,Def:1,Exp:0"'
 # Interface from same LAG with Fallback enabled but not assign to 'listen'
@@ -73,7 +72,7 @@ active_other_intf = '"Activ:1,TmOut:\d,Aggr:1,Sync:0,Col:0,Dist:0,Def:1,Exp:0"'
 
 passive_ready = '"Activ:0,TmOut:\d,Aggr:1,Sync:1,Col:1,Dist:1,Def:0,Exp:0"'
 # No fallback enabled, interface is 'dead'
-passive_no_fallback = '"Activ:0,TmOut:\d,Aggr:1,Sync:0,Col:0,Dist:0,Def:1,Exp:1"'
+passive_no_fallback = '"Activ:0,TmOut:\d,Aggr:1,Sync:0,Col:0,Dist:0,Def:1,Exp:0"'
 # Fallback enabled, in 'Defaulted' but 'Collecting and Distributing'
 passive_fallback = '"Activ:0,TmOut:\d,Aggr:1,Sync:1,Col:1,Dist:1,Def:1,Exp:0"'
 # Interface from same LAG with Fallback enabled but not assign to 'listen'
@@ -127,11 +126,18 @@ def main_setup(request, topology):
         set_intf_parameter(sw2, intf, ['user_config:admin=up',
                                        'other_config:lacp-aggregation-key=1'])
 
+    mac_addr_sw1 = sw1.libs.vtysh.show_interface(1)['mac_address']
+    mac_addr_sw2 = sw2.libs.vtysh.show_interface(1)['mac_address']
+    assert mac_addr_sw1 != mac_addr_sw2,\
+           'Mac address of interfaces in sw1 is equal to mac address of ' +\
+           'interfaces in sw2. This is a test framework problem. Dynamic ' +\
+           'LAGs cannot work properly under this condition. Refer to Taiga ' +\
+           'issue #1251.'
+
     sw_wait_until_ready([sw1, sw2], intf_labels)
 
     print('Verify all interfaces SM from both switches are working')
     sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
-
 
 ##############################################################################
 #
@@ -248,6 +254,8 @@ def test_nf_toggle_lacp_flag_passive(topology, step, main_setup):
     ##########################################################################
     print('Setting sw2 LAG to "passive"')
     set_port_parameter(sw2, test_lag, passive_lag)
+    print('Verify all interface SM from sw2 are "passive"')
+    sw_wait_until_all_sm_ready([sw2], intf_labels, passive_ready)
     print('Shutting down LAG1 on sw1')
     set_port_parameter(sw1, test_lag, disable_lag)
     print('Verify that all sw2 SMs are in "Defaulted and Expired"')
@@ -270,6 +278,8 @@ def test_nf_toggle_lacp_flag_passive(topology, step, main_setup):
     ##########################################################################
     print('Setting sw1 LAG to "passive"')
     set_port_parameter(sw1, test_lag, passive_lag)
+    print('Verify all interface SM from sw1 are "passive"')
+    sw_wait_until_all_sm_ready([sw1], intf_labels, passive_ready)
     print('Shutting down LAG1 on sw2')
     set_port_parameter(sw2, test_lag, disable_lag)
     print('Verify that all sw1 SMs are in "Defaulted and Expired"')
@@ -314,6 +324,8 @@ def test_nf_false_flag_toggle_admin_flag(topology, step, main_setup):
     print('Setting "lacp-fallback-ab" flag into OVSDB')
     set_port_parameter(sw1, test_lag, disable_fallback)
     set_port_parameter(sw2, test_lag, disable_fallback)
+    print('Verify all interface SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     #######################################################################
     # LAG 1 disabled on sw1
@@ -377,6 +389,8 @@ def test_nf_false_flag_toggle_lacp_active(topology, step, main_setup):
     print('Setting "lacp-fallback-ab" flag into OVSDB')
     set_port_parameter(sw1, test_lag, disable_fallback)
     set_port_parameter(sw2, test_lag, disable_fallback)
+    print('Verify all interface SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     ##########################################################################
     # LAG 1 disabled on sw1
@@ -440,12 +454,16 @@ def test_nf_false_flag_toggle_lacp_passive(topology, step, main_setup):
     print('Setting "lacp-fallback-ab" flag into OVSDB')
     set_port_parameter(sw1, test_lag, disable_fallback)
     set_port_parameter(sw2, test_lag, disable_fallback)
+    print('Verify all interface SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     ##########################################################################
     # LAG 1 disabled on sw1
     ##########################################################################
     print('Setting sw2 LAG to "passive"')
     set_port_parameter(sw2, test_lag, passive_lag)
+    print('Verify all interface SM from sw2 are "passive"')
+    sw_wait_until_all_sm_ready([sw2], intf_labels, passive_ready)
     print('Shutting down LAG1 on sw1')
     set_port_parameter(sw1, test_lag, disable_lag)
     print('Verify that all sw2 SMs are in "Defaulted and Expired"')
@@ -468,6 +486,8 @@ def test_nf_false_flag_toggle_lacp_passive(topology, step, main_setup):
     ##########################################################################
     print('Setting sw1 LAG to "passive"')
     set_port_parameter(sw1, test_lag, passive_lag)
+    print('Verify all interface SM from sw1 are "passive"')
+    sw_wait_until_all_sm_ready([sw1], intf_labels, passive_ready)
     print('Shutting down LAG1 on sw2')
     set_port_parameter(sw2, test_lag, disable_lag)
     print('Verify that all sw1 SMs are in "Defaulted and Expired"')
@@ -521,6 +541,8 @@ def test_fb_toggle_admin_flag(topology, step, main_setup):
     print('Enabling Fallback on both switches')
     set_port_parameter(sw1, test_lag, enable_fallback)
     set_port_parameter(sw2, test_lag, enable_fallback)
+    print('Verify all interfaces SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     ##########################################################################
     # LAG 1 disabled on sw1
@@ -599,6 +621,8 @@ def test_fb_toggle_lacp_flag_active(topology, step, main_setup):
     print('Enabling Fallback on both switches')
     set_port_parameter(sw1, test_lag, enable_fallback)
     set_port_parameter(sw2, test_lag, enable_fallback)
+    print('Verify all interfaces SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     ##########################################################################
     # LAG 1 disabled on sw1
@@ -646,6 +670,8 @@ def test_fb_toggle_lacp_flag_active(topology, step, main_setup):
 
     print('Enabling LAG1 on sw2')
     set_port_parameter(sw2, test_lag, active_lag)
+    print('Verify all interfaces SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     ##########################################################################
     # Remove added flag
@@ -683,12 +709,16 @@ def test_fb_toggle_lacp_flag_passive(topology, step, main_setup):
     print('Enabling Fallback on both switches')
     set_port_parameter(sw1, test_lag, enable_fallback)
     set_port_parameter(sw2, test_lag, enable_fallback)
+    print('Verify all interfaces SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     ##########################################################################
     # LAG 1 disabled on sw1
     ##########################################################################
     print('Setting sw2 LAG to "passive"')
     set_port_parameter(sw2, test_lag, passive_lag)
+    print('Verify all interface SM from sw2 are "passive"')
+    sw_wait_until_all_sm_ready([sw2], intf_labels, passive_ready)
     print('Shutting down LAG1 on sw1')
     set_port_parameter(sw1, test_lag, disable_lag)
 
@@ -722,6 +752,8 @@ def test_fb_toggle_lacp_flag_passive(topology, step, main_setup):
     ##########################################################################
     print('Setting sw1 LAG to "passive"')
     set_port_parameter(sw1, test_lag, passive_lag)
+    print('Verify all interface SM from switch 1 are working')
+    sw_wait_until_all_sm_ready([sw1], intf_labels, passive_ready)
     print('Shutting down LAG1 on sw2')
     set_port_parameter(sw2, test_lag, disable_lag)
 
@@ -747,6 +779,8 @@ def test_fb_toggle_lacp_flag_passive(topology, step, main_setup):
 
     print('Setting sw1 LAG to "active"')
     set_port_parameter(sw1, test_lag, active_lag)
+    print('Verify all interface SM from both switches are working')
+    sw_wait_until_all_sm_ready([sw1, sw2], intf_labels, active_ready)
 
     ##########################################################################
     # Remove added flag
