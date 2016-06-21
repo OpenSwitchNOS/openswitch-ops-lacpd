@@ -1303,3 +1303,622 @@ Verify LACP fallback timeout is contained in the otuput of
   "show running-config" does not contain "lacp fallback timeout <configured_value>".
 - When fallback timeout is zero, the output of "show running-config" contains
   "lacp fallback timeout".
+
+## Enable fallback mode priority
+### Objective
+This test will verify fallback mode priority functionality. The interface with
+higher priority must be in Defaulted and in 'Collecting and Distributing' when
+fallback is active and the fallback mode is 'priority'
+
+### Requirements
+- Physical/Virtual switches
+- **CT File**: `ops-tests/component/test_lacpd_ct_fallback_priority_all_active_modes_.py`
+
+### Setup
+#### Topology diagram
+
+```ditaa
+            +------------+                              +------------+
+            |            |                              |            |
+            |            <------------------------------>            |
+            |  Switch 1  <------------------------------>  Switch 2  |
+            |            <------------------------------>            |
+            |   (LAG 1)  <------------------------------>   (LAG 1)  |
+            |            |                              |            |
+            |            |                              |            |
+            +------------+                              +------------+
+```
+
+### Description
+Configure a topology with two switches, connected as shown in the
+topology diagram.
+
+1. Configure LAG 1 on switch 1 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure LAG 1 on switch 2 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure interfaces 1 to 4 on switch 1 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Configure interfaces 1 to 4 on switch 2 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Set port priorities on LAG 1, set interface 1 with higher priority
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback priority mode on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Disable LAG 1 on switch 2 by toggling **lacp** flag to `off`
+* Verify that state machine from interface 1 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Verify that state machine from interfaces 2, 3 and 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Set port priorities on LAG 1, interface 2 has higher priority now
+* Verify that state machine from interface 2 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Verify that state machine from interfaces 1, 3 and 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Enable LAG 1 on switch 2 by toggling **lacp** flag to `active`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+
+### Test result criteria
+#### Test pass criteria
+- All interfaces state machines on switch 1 fulfill with all the expected flags
+enabled when LAG 1 is disabled on switch 2.
+- All interfaces state machines fullfil with all the expected flags enabled
+when both LAGs 1 are enabled on both switches.
+#### Test fail criteria
+- At least one interface state machine on switch 1 does not fulfill with all
+the expected flags enabled when LAG 1 is disabled on switch 2.
+- At least one interface state machine does not fulfill with all the expected
+flags enabled when both LAGs 1 are enabled on both switches.
+
+
+## Fallback mode priority change to all active mode
+### Objective
+This test will verify fallback mode priority changed to all active functionality.
+The interface with higher priority must be in Defaulted and in
+'Collecting and Distributing' when fallback is active and the fallback
+mode is 'priority'. When the mode is change to all active, all interfaces
+must be in Defaulted and in 'Collecting and Distributing'
+
+### Requirements
+- Physical/Virtual switches
+- **CT File**: `ops-tests/component/test_lacpd_ct_fallback_priority_all_active_modes_.py`
+
+### Setup
+#### Topology diagram
+
+```ditaa
+            +------------+                              +------------+
+            |            |                              |            |
+            |            <------------------------------>            |
+            |  Switch 1  <------------------------------>  Switch 2  |
+            |            <------------------------------>            |
+            |   (LAG 1)  <------------------------------>   (LAG 1)  |
+            |            |                              |            |
+            |            |                              |            |
+            +------------+                              +------------+
+```
+
+### Description
+Configure a topology with two switches, connected as shown in the
+topology diagram.
+
+1. Configure LAG 1 on switch 1 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure LAG 1 on switch 2 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure interfaces 1 to 4 on switch 1 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Configure interfaces 1 to 4 on switch 2 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Set port priorities on LAG 1, set interface 1 with higer priority
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback priority mode on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Disable LAG 1 on switch 2 by toggling **lacp** flag to `off`
+* Verify that state machine from interface 1 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Verify that state machine from interfaces 2, 3 and 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Set fallback mode to all active on switch 1
+* Verify that state machine from interface 1 to 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Enable LAG 1 on switch 2 by toggling **lacp** flag to `active`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+
+### Test result criteria
+#### Test pass criteria
+- All interfaces state machines on switch 1 fulfill with all the expected flags
+enabled when LAG 1 is disabled on switch 2.
+- All interfaces state machines fullfil with all the expected flags enabled
+when both LAGs 1 are enabled on both switches.
+#### Test fail criteria
+- At least one interface state machine on switch 1 does not fulfill with all
+the expected flags enabled when LAG 1 is disabled on switch 2.
+- At least one interface state machine does not fulfill with all the expected
+flags enabled when both LAGs 1 are enabled on both switches.
+
+
+## Enable Fallback mode priority with timeout
+### Objective
+he interface with higher priority must be in Defaulted and in
+'Collecting and Distributing' when fallback is active and the fallback
+mode is 'priority'. When the fallback timeout is set to 20 seconds, the
+interfaces should remain in fallback, after the 20 seconds all interfaces
+must not be in fallback anymore
+
+### Requirements
+- Physical/Virtual switches
+- **CT File**: `ops-tests/component/test_lacpd_ct_fallback_priority_all_active_modes_.py`
+
+### Setup
+#### Topology diagram
+
+```ditaa
+            +------------+                              +------------+
+            |            |                              |            |
+            |            <------------------------------>            |
+            |  Switch 1  <------------------------------>  Switch 2  |
+            |            <------------------------------>            |
+            |   (LAG 1)  <------------------------------>   (LAG 1)  |
+            |            |                              |            |
+            |            |                              |            |
+            +------------+                              +------------+
+```
+
+### Description
+Configure a topology with two switches, connected as shown in the
+topology diagram.
+
+1. Configure LAG 1 on switch 1 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure LAG 1 on switch 2 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure interfaces 1 to 4 on switch 1 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Configure interfaces 1 to 4 on switch 2 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Set port priorities on LAG 1, set interface 1 with higher priority
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable Fallback timeout to 20 seconds
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback priority mode on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Disable LAG 1 on switch 2 by toggling **lacp** flag to `off`
+* Wait for 10 seconds, fallback should be still active
+* Verify that state machine from interface 3 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Verify that state machine from interfaces 1, 2 and 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Wait for 15 seconds, fallback should not be active
+* Verify that state machine all interaces on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Enable LAG 1 on switch 2 by toggling **lacp** flag to `active`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+
+### Test result criteria
+#### Test pass criteria
+- All interfaces state machines on switch 1 fulfill with all the expected flags
+enabled when LAG 1 is disabled on switch 2.
+- All interfaces state machines fullfil with all the expected flags enabled
+when both LAGs 1 are enabled on both switches.
+#### Test fail criteria
+- At least one interface state machine on switch 1 does not fulfill with all
+the expected flags enabled when LAG 1 is disabled on switch 2.
+- At least one interface state machine does not fulfill with all the expected
+flags enabled when both LAGs 1 are enabled on both switches.
+
+
+## Enable Fallback mode priority with timeout zero
+### Objective
+The interface with higher priority must be in Defaulted and in
+'Collecting and Distributing' when fallback is active and the fallback
+mode is 'priority'. When the fallback timeout is set to 0, the interfaces
+should be in fallback all the time
+
+### Requirements
+- Physical/Virtual switches
+- **CT File**: `ops-tests/component/test_lacpd_ct_fallback_priority_all_active_modes_.py`
+
+### Setup
+#### Topology diagram
+
+```ditaa
+            +------------+                              +------------+
+            |            |                              |            |
+            |            <------------------------------>            |
+            |  Switch 1  <------------------------------>  Switch 2  |
+            |            <------------------------------>            |
+            |   (LAG 1)  <------------------------------>   (LAG 1)  |
+            |            |                              |            |
+            |            |                              |            |
+            +------------+                              +------------+
+```
+
+### Description
+Configure a topology with two switches, connected as shown in the
+topology diagram.
+
+1. Configure LAG 1 on switch 1 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure LAG 1 on switch 2 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure interfaces 1 to 4 on switch 1 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Configure interfaces 1 to 4 on switch 2 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Set port priorities on LAG 1, set interface 2 with higher priority
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable Fallback timeout to 0 seconds
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback priority mode on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Disable LAG 1 on switch 2 by toggling **lacp** flag to `off`
+* Wait for 10 seconds, fallback should be still active
+* Verify that state machine from interface 2 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Verify that state machine from interfaces 1, 3 and 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Enable LAG 1 on switch 2 by toggling **lacp** flag to `active`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+
+### Test result criteria
+#### Test pass criteria
+- All interfaces state machines on switch 1 fulfill with all the expected flags
+enabled when LAG 1 is disabled on switch 2.
+- All interfaces state machines fullfil with all the expected flags enabled
+when both LAGs 1 are enabled on both switches.
+#### Test fail criteria
+- At least one interface state machine on switch 1 does not fulfill with all
+the expected flags enabled when LAG 1 is disabled on switch 2.
+- At least one interface state machine does not fulfill with all the expected
+flags enabled when both LAGs 1 are enabled on both switches.
+
+
+## Enable Fallback mode priority toggle lacp mode
+### Objective
+If in switch 1 and 2, the lacp mode is set to 'off' and then to 'on' the
+interface with higher priority must be in Defaulted and in'Collecting and
+Distributing' when fallback is active and the fallback mode is 'priority'.
+
+### Requirements
+- Physical/Virtual switches
+- **CT File**: `ops-tests/component/test_lacpd_ct_fallback_priority_all_active_modes_.py`
+
+### Setup
+#### Topology diagram
+
+```ditaa
+            +------------+                              +------------+
+            |            |                              |            |
+            |            <------------------------------>            |
+            |  Switch 1  <------------------------------>  Switch 2  |
+            |            <------------------------------>            |
+            |   (LAG 1)  <------------------------------>   (LAG 1)  |
+            |            |                              |            |
+            |            |                              |            |
+            +------------+                              +------------+
+```
+
+### Description
+Configure a topology with two switches, connected as shown in the
+topology diagram.
+
+1. Configure LAG 1 on switch 1 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure LAG 1 on switch 2 with the following values
+    * **lacp** `active`
+    * **other_config:lacp-time** `fast`
+    * **hw_config:enable** `true`
+* Configure interfaces 1 to 4 on switch 1 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Configure interfaces 1 to 4 on switch 2 with the following values
+    * **user_config:admin** `up`
+    * **other_config:lacp-aggregation-key** `1`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Set port priorities on LAG 1, set interface 1 with higher priority
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Enable LAG 1 Fallback priority mode on switch 1
+* Verify all interfaces SM from both switches are working with the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+* Disable LAG 1 on switch 2 by toggling **lacp** flag to `off`
+* Disable LAG 1 on switch 1 by toggling **lacp** flag to `off`
+* Verify that state machine from interface 1 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Verify that state machine from interfaces 2, 3 and 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Disable LAG 1 on switch 1 by toggling **lacp** flag to `off`
+* Set port priorities on LAG 1, set interface 4 with higher priority
+* Sleep 5 seconds to make sure the last command is applied
+* Enable LAG 1 on switch 1 by toggling **lacp** flag to `active`
+* Verify that state machine from interface 4 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+    * `defaulted`
+* Verify that state machine from interfaces 1, 2 and 3 on switch 1 has the following
+flags enabled
+    * `active`
+    * `aggregable`
+    * `defaulted`
+* Enable LAG 1 on switch 2 by toggling **lacp** flag to `active`
+* Verify that all state machines from interface 1 to 4 on both switches have
+this flags enabled
+    * `active`
+    * `aggregable`
+    * `in-sync`
+    * `collecting`
+    * `distributing`
+
+### Test result criteria
+#### Test pass criteria
+- All interfaces state machines on switch 1 fulfill with all the expected flags
+enabled when LAG 1 is disabled on switch 2.
+- All interfaces state machines fullfil with all the expected flags enabled
+when both LAGs 1 are enabled on both switches.
+#### Test fail criteria
+- At least one interface state machine on switch 1 does not fulfill with all
+the expected flags enabled when LAG 1 is disabled on switch 2.
+- At least one interface state machine does not fulfill with all the expected
+flags enabled when both LAGs 1 are enabled on both switches.

@@ -82,7 +82,8 @@ extern void LACP_initialize_port(port_handle_t lport_handle,
                                  int link_speed,
                                  int hw_collecting,
                                  short sys_priority,
-                                 char *sys_id);
+                                 char *sys_id,
+                                 bool fallback_enabled);
 extern void LACP_update_port_params(port_handle_t lport_handle,
                                     unsigned long flags,
                                     short data, int hw_collecting);
@@ -107,6 +108,9 @@ extern void LACP_poll_link_state(lacp_per_port_variables_t *);
 extern void LACPPutPortUp(ulong);
 extern void set_all_port_system_priority(void);
 extern void set_lport_fallback_status(port_handle_t, int);
+extern void set_lport_fallback_params(port_handle_t lport_handle,
+                                      enum fallback_mode mode,
+                                      int timeout);
 extern void set_all_port_system_mac_addr(void);
 extern void set_lport_overrides(port_handle_t, int, unsigned char *);
 
