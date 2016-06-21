@@ -79,6 +79,7 @@ mlacp_blocking_send_select_aggregator(LAG_t *const lag,
 
     match_params.actor_oper_port_priority = lacp_port->actor_admin_port_priority;
     match_params.partner_oper_port_priority = lacp_port->partner_oper_port_priority;
+    match_params.actor_oper_port_number = lacp_port->actor_oper_port_number;
 
     match_params.partner_system_priority =
         lacp_port->partner_oper_system_variables.system_priority;
@@ -86,6 +87,7 @@ mlacp_blocking_send_select_aggregator(LAG_t *const lag,
     memcpy(match_params.partner_system_id,
            lacp_port->partner_oper_system_variables.system_mac_addr,
            sizeof(macaddr_3_t));
+    match_params.is_fallback_active = lacp_port->is_fallback_active;
 
     RDEBUG(DL_LACP_SEND, "sending the following params to VLAN/LAG mgr :\n");
     RDEBUG(DL_LACP_SEND, "port_type %d, actor_key 0x%x, partner_key 0x%x "

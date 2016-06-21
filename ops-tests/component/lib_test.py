@@ -120,6 +120,12 @@ def set_intf_parameter(sw, intf, config):
     return output
 
 
+def remove_intf_parameter(sw, intf, col, keys):
+    """Removes 'keys' in 'col' section from 'interface' on 'sw'."""
+    cmd = "remove interface %s %s %s" % (intf, col, ' '.join(map(str, keys)))
+    return sw(cmd, shell='vsctl')
+
+
 def sw_get_port_state(params):
     c = "get port " + str(params[1])
     for f in params[2]:
@@ -326,7 +332,7 @@ def verify_intf_lacp_status(sw, intf, verify_values, context=''):
             verify_values[attrs[i]] + ", got " + field_vals[i]
 
 
-def sw_wait_until_all_sm_ready(sws, intfs, flags, max_retries=30):
+def sw_wait_until_all_sm_ready(sws, intfs, flags, max_retries=50):
     """Verify that all 'intfs' SMs have 'flags' enabled.
 
     We need to verify that all interfaces' State Machines have these 'flags'
@@ -377,7 +383,7 @@ def sw_wait_until_all_sm_ready(sws, intfs, flags, max_retries=30):
         sleep(1)
 
 
-def sw_wait_until_one_sm_ready(sws, intfs, flags, max_retries=30):
+def sw_wait_until_one_sm_ready(sws, intfs, flags, max_retries=50):
     """Verify that one 'intfs' SM has 'flags' enabled.
 
     We need to verify that at least one interface in 'intf' has 'flags'
