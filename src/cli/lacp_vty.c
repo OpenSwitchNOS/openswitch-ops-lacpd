@@ -1398,6 +1398,12 @@ lacp_remove_intf_from_lag(const char *if_name, const char *lag_number)
    ovsrec_interface_set_other_config(interface_row, &smap);
    smap_destroy(&smap);
 
+   /* Remove User config */
+   smap_clone(&smap, &interface_row->user_config);
+   smap_remove(&smap, INTERFACE_USER_CONFIG_MAP_ADMIN);
+   ovsrec_interface_set_user_config(interface_row, &smap);
+   smap_destroy(&smap);
+
    /* Unlink the interface from the Port row found*/
    interfaces = xmalloc(sizeof *lag_port->interfaces * (lag_port->n_interfaces-1));
    for(i = n = 0; i < lag_port->n_interfaces; i++)
