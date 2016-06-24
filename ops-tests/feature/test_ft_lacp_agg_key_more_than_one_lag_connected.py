@@ -176,21 +176,21 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
     sw1_lacp_state = get_diagdump_lacp_state(sw1)
     sw2_lacp_state = get_diagdump_lacp_state(sw2)
     map_diagdump_lacp_sw1_p11 = sw1_lacp_state[str(sw1_lag_id)][
-                                              int(ports_sw1[0])]
+        str(ports_sw1[0])]
     map_diagdump_lacp_sw1_p12 = sw1_lacp_state[str(sw1_lag_id)][
-                                              int(ports_sw1[1])]
+        str(ports_sw1[1])]
     map_diagdump_lacp_sw1_p13 = sw1_lacp_state[str(sw1_lag_id)][
-                                              int(ports_sw1[2])]
+        str(ports_sw1[2])]
     map_diagdump_lacp_sw1_p14 = sw1_lacp_state[str(sw1_lag_id)][
-                                              int(ports_sw1[3])]
+        str(ports_sw1[3])]
     map_diagdump_lacp_sw2_p21 = sw2_lacp_state[str(sw2_lag_id)][
-                                              int(ports_sw2[0])]
+        str(ports_sw2[0])]
     map_diagdump_lacp_sw2_p22 = sw2_lacp_state[str(sw2_lag_id)][
-                                              int(ports_sw2[1])]
+        str(ports_sw2[1])]
     map_diagdump_lacp_sw2_p23 = sw2_lacp_state[str(sw2_lag_id_2)][
-                                              int(ports_sw2[2])]
+        str(ports_sw2[2])]
     map_diagdump_lacp_sw2_p24 = sw2_lacp_state[str(sw2_lag_id_2)][
-                                              int(ports_sw2[3])]
+        str(ports_sw2[3])]
 
     step("Validate the LAG was created in both switches")
     validate_lag_state_sync(map_lacp_sw1_p11, LOCAL_STATE)
