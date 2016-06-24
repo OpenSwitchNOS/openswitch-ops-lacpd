@@ -91,6 +91,14 @@ def test_lacp_agg_key_cross_links(topology, step):
     assert sw1 is not None
     assert sw2 is not None
 
+    mac_addr_sw1 = sw1.libs.vtysh.show_interface(1)['mac_address']
+    mac_addr_sw2 = sw2.libs.vtysh.show_interface(1)['mac_address']
+    assert mac_addr_sw1 != mac_addr_sw2, \
+        'Mac address of interfaces in sw1 is equal to mac address of ' + \
+        'interfaces in sw2. This is a test framework problem. Dynamic ' + \
+        'LAGs cannot work properly under this condition. Refer to Taiga ' + \
+        'issue #1251.'
+
     ports_sw1 = list()
     ports_sw2 = list()
     port_labels = ['1', '2', '3', '4', '5', '6', '7']
