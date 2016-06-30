@@ -36,7 +36,6 @@ from lacp_lib import (
     verify_turn_on_interfaces
 )
 
-import pytest
 
 TOPOLOGY = """
 # +-------+                                  +-------+
@@ -187,6 +186,7 @@ def main_setup(request, topology):
     verify_connectivity_between_hosts(hs1, hs1_addr, hs2, hs2_addr, True)
 
 
+@mark.gate
 @mark.platform_incompatible(['docker'])
 def test_lacpd_heartbeat(topology, main_setup, step):
     """Test LACP heartbeat average rate (slow/fast).

@@ -21,7 +21,7 @@
 # Topology:    2 switch (DUT running OpenSwitch)
 #
 ##########################################################################
-import pytest
+from pytest import mark
 from lib_test import (
     set_port_parameter,
     sw_clear_user_config,
@@ -147,7 +147,8 @@ def setup(request, topology):
     request.addfinalizer(cleanup)
 
 
-@pytest.mark.skipif(True, reason="Skipping due to constant failures")
+@mark.gate
+@mark.skipif(True, reason="Skipping due to constant failures")
 def test_lacpd_lag_dynamic_port_priority(topology, step, main_setup, setup):
     """
     Case 1:
@@ -236,7 +237,8 @@ def test_lacpd_lag_dynamic_port_priority(topology, step, main_setup, setup):
     sw2("ovs-vsctl del-port lag2", shell='bash')
 
 
-@pytest.mark.skipif(True, reason="Skipping due to instability")
+@mark.gate
+@mark.skipif(True, reason="Skipping due to instability")
 def test_lacpd_lag_dynamic_partner_priority(topology, step, main_setup, setup):
     """
     Case 2:
