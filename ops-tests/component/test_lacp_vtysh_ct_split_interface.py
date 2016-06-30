@@ -41,6 +41,7 @@ TOPOLOGY = """
 """
 
 
+@pytest.mark.gate
 @pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_lacp_split_interface(topology, step):
     sw1 = topology.get('sw1')

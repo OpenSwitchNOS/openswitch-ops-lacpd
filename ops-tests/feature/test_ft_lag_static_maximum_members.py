@@ -95,6 +95,7 @@ sw2:1 -- hs2:1
 
 
 # @mark.platform_incompatible(['ostl'])
+@pytest.mark.gate
 @pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_static_maximum_members(topology, step):
 

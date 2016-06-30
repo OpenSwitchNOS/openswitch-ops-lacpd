@@ -63,6 +63,7 @@ def enable_intf_list(sw, intf_list):
         sw_set_intf_user_config(sw, intf, ['admin=up'])
 
 
+@pytest.mark.gate
 @pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_ovs_appctl_getlacpinterfaces(topology):
     """
