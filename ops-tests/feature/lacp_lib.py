@@ -151,6 +151,14 @@ def validate_turn_on_interfaces(sw, interfaces):
             "Interface state for " + intf + " is down"
 
 
+def retry_validate_turn_on_interfaces(sw, interfaces,
+                                      init_msg, err_msg,
+                                      time_steps, timeout):
+    validate_func = retry_wrapper(init_msg, err_msg,
+                                  time_steps, timeout
+                                  )(validate_turn_on_interfaces)
+    validate_func(sw, interfaces)
+
 def validate_turn_off_interfaces(sw, interfaces):
     for intf in interfaces:
         port = find_device_label(sw, intf)
@@ -230,6 +238,118 @@ def validate_lag_state_static(map_lacp, state):
     for key in map_lacp[state]:
         assert map_lacp[state][key] is False,\
             "LAG state for {} should be False".format(key)
+
+
+def validate_lag_actor_state(map_lacp, actor_state_flags, state=LOCAL_STATE):
+    success = True
+
+    for flag in actor_state_flags:
+        if not map_lacp[state][flag]:
+            success = False
+
+    return success
+
+
+def sw_wait_until_all_ready(sws, intfs, func, flags, max_retries=30):
+    all_intfs = []
+    retries = 0
+
+    for sw in sws:
+        all_intfs += [[sw, intf, False] for intf in intfs]
+
+    # All arrays shall be True
+    while not all(intf[2] for intf in all_intfs):
+        # Retrieve all arrays that have False
+        not_ready = filter(lambda intf: not intf[2], all_intfs)
+
+        assert retries is not max_retries, \
+            'Max retires achieved! Test cannot continue from here!'
+
+        for sm in not_ready:
+            map_lacp = sw.libs.vtysh.show_lacp_interface(sm[1])
+            sm[2] = func(map_lacp, flags)
+
+        retries += 1
+        sleep(1)
+
+
+def sw_wait_until_any_ready(sws, intfs, func, flags, max_retries=30):
+    all_intfs = []
+    retries = 0
+    intf_fallback_enabled = 0
+
+    for sw in sws:
+        all_intfs += [[sw, intf, False] for intf in intfs]
+
+    # One array shall be True
+    while not any(intf[2] for intf in all_intfs):
+        # Retrieve all arrays that have False
+        not_ready = filter(lambda intf: not intf[2], all_intfs)
+
+        assert retries is not max_retries, \
+            'Max retires achieved! Test cannot continue from here!'
+
+        for sm in not_ready:
+            map_lacp = sw.libs.vtysh.show_lacp_interface(sm[1])
+            sm[2] = func(map_lacp, flags)
+
+            if sm[2]:
+                intf_fallback_enabled = sm[1]
+
+        retries += 1
+        sleep(1)
+
+    return intf_fallback_enabled
+
+
+def verify_actor_state(state, sws, intfs, any=False):
+    flags = []
+
+    # Keep all chars
+    tmp = list(state)
+
+    for flag in tmp:
+        if flag == 'a':
+            flags.append('active')
+        elif flag == 'p':
+            flags.append('passive')
+        elif flag == 'f':
+            flags.append('aggregable')
+        elif flag == 'n':
+            flags.append('in_sync')
+        elif flag == 'o':
+            flags.append('out_sync')
+        elif flag == 'c':
+            flags.append('collecting')
+        elif flag == 'x':
+            flags.append('state_expired')
+        elif flag == 'd':
+            flags.append('distributing')
+        elif flag == 'e':
+            flags.append('neighbor_state')
+        elif flag == 's':
+            flags.append('short_time')
+        elif flag == 'l':
+            flags.append('long_timeout')
+        elif flag == 'i':
+            flags.append('individual')
+        else:
+            assert False, 'Unknown flag, aborting!'
+
+    if any:
+        return sw_wait_until_any_ready(sws,
+                                       intfs,
+                                       validate_lag_actor_state,
+                                       flags)
+    else:
+        return sw_wait_until_all_ready(sws,
+                                       intfs,
+                                       validate_lag_actor_state,
+                                       flags)
+
+
+def verify_actor_state_afoex(sws, intfs):
+    sw_wait_until_all_ready(sws, intfs, validate_lag_state_afoex)
 
 
 def validate_lag_state_default_neighbor(map_lacp, state):
@@ -764,8 +884,7 @@ def retry_wrapper(
     soft_err_msg,
     time_steps,
     timeout,
-    err_condition=None
-):
+    err_condition=None):
     if err_condition is None:
         err_condition = AssertionError
 
