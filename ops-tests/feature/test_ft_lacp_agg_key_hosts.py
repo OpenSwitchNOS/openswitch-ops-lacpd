@@ -43,6 +43,7 @@ from lacp_lib import (
     verify_state_sync_lag,
     verify_turn_on_interfaces
 )
+from pytest import mark
 
 TOPOLOGY = """
 # +-------+              +-------+
@@ -88,6 +89,7 @@ sw3:4 -- hs3:1
 """
 
 
+@mark.gate
 def test_lacp_aggregation_key_with_hosts(topology, step):
     """
     Case 1:
