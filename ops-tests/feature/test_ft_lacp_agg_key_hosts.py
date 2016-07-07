@@ -43,6 +43,10 @@ from lacp_lib import (
     verify_state_sync_lag,
     verify_turn_on_interfaces
 )
+<<<<<<< HEAD
+=======
+from pytest import mark
+>>>>>>> 68e0762... Adding gate markers to the test scripts
 
 TOPOLOGY = """
 # +-------+              +-------+
@@ -88,6 +92,10 @@ sw3:4 -- hs3:1
 """
 
 
+<<<<<<< HEAD
+=======
+@mark.gate
+>>>>>>> 68e0762... Adding gate markers to the test scripts
 def test_lacp_aggregation_key_with_hosts(topology, step):
     """
     Case 1:
