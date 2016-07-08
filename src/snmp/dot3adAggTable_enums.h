@@ -1,0 +1,3 @@
+#ifndef DOT3ADAGGTABLE_ENUMS_H
+#define DOT3ADAGGTABLE_ENUMS_H
+#endif
