@@ -27,7 +27,7 @@
 ##########################################################################
 
 from pytest import mark
-from lacp_lib import(
+from lacp_lib import (
     assign_ip_to_lag,
     associate_interface_to_lag,
     associate_vlan_to_l2_interface,
@@ -85,6 +85,9 @@ sw1:3 -- sw2:3
 sw2:4 -- hs2:1
 """
 
+# Ports
+port_labels = ['1', '2', '3', '4']
+
 
 @mark.platform_incompatible(['docker'])
 def test_l2_l3_interface_switch_case_1(topology):
@@ -114,21 +117,27 @@ def test_l2_l3_interface_switch_case_1(topology):
     l3_lag_id = '3'
     vlan_identifier = '8'
 
-    p11 = sw1.ports['1']
-    p12 = sw1.ports['2']
-    p13 = sw1.ports['3']
-    p14 = sw1.ports['4']
-    p21 = sw2.ports['1']
-    p22 = sw2.ports['2']
-    p23 = sw2.ports['3']
-    p24 = sw2.ports['4']
+    ports_sw1 = list()
+    ports_sw2 = list()
+
+    print("Mapping interfaces")
+    for port in port_labels:
+        ports_sw1.append(sw1.ports[port])
+        ports_sw2.append(sw2.ports[port])
+
+    p11 = ports_sw1[0]
+    p12 = ports_sw1[1]
+    p13 = ports_sw1[2]
+    p14 = ports_sw1[3]
+    p21 = ports_sw2[0]
+    p22 = ports_sw2[1]
+    p23 = ports_sw2[2]
+    p24 = ports_sw2[3]
 
     print("Turning on all interfaces used in this test")
-    ports_sw1 = [p11, p12, p13, p14]
     for port in ports_sw1:
         turn_on_interface(sw1, port)
 
-    ports_sw2 = [p21, p22, p23, p24]
     for port in ports_sw2:
         turn_on_interface(sw2, port)
 

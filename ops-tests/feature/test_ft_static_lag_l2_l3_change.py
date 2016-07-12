@@ -26,7 +26,6 @@
 #
 ##########################################################################
 
-from pytest import mark
 from lacp_lib import (
     assign_ip_to_lag,
     associate_interface_to_lag,
@@ -84,7 +83,6 @@ sw2:1 -- hs2:1
 """
 
 
-@mark.platform_incompatible(['docker'])
 def test_l2_l3_switch_case_1(topology, step):
     """
     Case 1:
