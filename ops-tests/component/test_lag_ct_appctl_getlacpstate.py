@@ -118,7 +118,8 @@ def test_ovs_appctl_getlacpstate(topology):
                        "ready_n", "selected", "port_moved", "ntt",
                        "port_enabled", "lacp_activity", "time_out",
                        "aggregation", "sync", "collecting", "distributing",
-                       "defaulted", "expired"]
+                       "defaulted", "expired", "lacp_fallback", "fallback",
+                       "timeout_remaining"]
 
     print("Turning on all interfaces used in this test")
     ports_sw1 = [p11, p12, p13, p14]
@@ -154,6 +155,9 @@ def test_ovs_appctl_getlacpstate(topology):
     for expected_output_element in expected_output[15:23]:
         assert output.count(expected_output_element) == 4,\
             "Element: %s is not in output 4 times" % (expected_output_element)
+    for expected_output_element in expected_output[23:25]:
+        assert expected_output_element in output,\
+            "Element: %s is not in output" % (expected_output_element)
 
     print("Execute getlacpstate command for lag1")
     c = "ovs-appctl -t ops-lacpd lacpd/getlacpstate lag1"
@@ -167,6 +171,9 @@ def test_ovs_appctl_getlacpstate(topology):
     for expected_output_element in expected_output[15:23]:
         assert output.count(expected_output_element) == 4,\
             "Element: %s is not in output 4 times" % (expected_output_element)
+    for expected_output_element in expected_output[23:25]:
+        assert expected_output_element in output,\
+            "Element: %s is not in output" % (expected_output_element)
 
     print("Execute getlacpstate command with non existent lag")
     c = "ovs-appctl -t ops-lacpd lacpd/getlacpstate lag3"
