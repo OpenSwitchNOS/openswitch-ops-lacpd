@@ -1976,6 +1976,11 @@ static int lag_routing(const char *port_name)
         return CMD_SUCCESS;
     }
 
+    //Clean vlan configuration
+    ovsrec_port_set_vlan_mode(port_row, NULL);
+    ops_port_set_tag(0, port_row, idl);
+    ops_port_set_trunks(NULL, 0, port_row, idl);
+
     default_bridge_row = ovsrec_bridge_first(idl);
     ports = xmalloc(sizeof *default_bridge_row->ports *
         (default_bridge_row->n_ports - 1));
