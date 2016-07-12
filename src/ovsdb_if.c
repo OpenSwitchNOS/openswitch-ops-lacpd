@@ -3567,9 +3567,14 @@ void lacpd_dump_state_per_interface(struct ds *ds, struct port_data *portp)
                                     lacp_port_variable->lacp_control.port_moved,
                                     lacp_port_variable->lacp_control.ntt,
                                     lacp_port_variable->lacp_control.port_enabled);
-
+                    ds_put_format(ds, "    lacp_fallback\n");
                     if (lacp_port_variable->ovs_timeout > 0) {
-                        ds_put_format(ds, "    fallback timeout remaining: %d seconds\n", lacp_port_variable->fallback_timer_expiry_counter);
+                        ds_put_format(ds, "       fallback:%s timeout_remaining:%d seconds\n",
+                            (lacp_port_variable->fallback_enabled == TRUE) ? "true":"false",
+                            lacp_port_variable->fallback_timer_expiry_counter);
+                    }else{
+                        ds_put_format(ds, "       fallback:%s \n",
+                            (lacp_port_variable->fallback_enabled == TRUE) ? "true":"false");
                     }
                     break;
                 }
