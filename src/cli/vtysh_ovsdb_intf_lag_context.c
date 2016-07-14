@@ -35,6 +35,8 @@
 #include "vtysh/utils/system_vtysh_utils.h"
 #include "lacp_vty.h"
 #include "qos_lag.h"
+#include "ops-utils.h"
+#include "mstp_lag.h"
 
 /*-----------------------------------------------------------------------------
 | Function : vtysh_ovsdb_intftable_parse_vlan
@@ -220,7 +222,9 @@ vtysh_intf_lag_context_clientcallback(void *p_private)
       qos_cos_lag_show_running_config(port_row);
       qos_dscp_lag_show_running_config(port_row);
       qos_apply_lag_show_running_config(port_row);
+      mstp_lag_show_running_config(port_row);
     }
+
   }
 
   return e_vtysh_ok;
