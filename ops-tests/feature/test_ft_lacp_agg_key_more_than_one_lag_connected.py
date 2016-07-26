@@ -37,10 +37,8 @@ from lacp_lib import (
     set_lacp_rate_fast,
     turn_on_interface,
     validate_diagdump_lacp_interfaces,
-    validate_diagdump_lag_state_afn,
     validate_diagdump_lag_state_out_sync,
     validate_diagdump_lag_state_sync,
-    validate_lag_state_afn,
     validate_lag_state_out_of_sync,
     validate_lag_state_sync,
     verify_lag_config,
@@ -110,6 +108,9 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
         ports_sw1.append(sw1.ports[port])
         ports_sw2.append(sw2.ports[port])
 
+    ports_sw1.sort()
+    ports_sw2.sort()
+
     step("Turning on all interfaces used in this test")
     for port in ports_sw1:
         turn_on_interface(sw1, port)
@@ -138,7 +139,7 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
     set_lacp_rate_fast(sw2, sw2_lag_id_2)
 
     step("Associate interfaces to lag in both switches")
-    for interface in ports_sw1:
+    for interface in ports_sw1[0:2]:
         associate_interface_to_lag(sw1, interface, sw1_lag_id)
 
     for interface in ports_sw2[0:2]:
@@ -148,7 +149,7 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
         associate_interface_to_lag(sw2, interface, sw2_lag_id_2)
 
     step("#### Verify LAG configuration ####")
-    verify_lag_config(sw1, sw1_lag_id, ports_sw1, 'fast', mode='active')
+    verify_lag_config(sw1, sw1_lag_id, ports_sw1[0:2], 'fast', mode='active')
     verify_lag_config(sw2, sw2_lag_id, ports_sw2[0:2], 'fast', mode='active')
     verify_lag_config(sw2, sw2_lag_id_2, ports_sw2[2:4], 'fast', mode='active')
 
@@ -159,8 +160,8 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
     sw2_lacp_interfaces = get_diagdump_lacp_interfaces(sw2)
     validate_diagdump_lacp_interfaces(sw1_lacp_interfaces,
                                       sw1_lag_id,
-                                      ports_sw1,
-                                      ports_sw1,
+                                      ports_sw1[0:2],
+                                      ports_sw1[0:2],
                                       [ports_sw1[0], ports_sw1[1]])
     validate_diagdump_lacp_interfaces(sw2_lacp_interfaces, sw2_lag_id,
                                       [ports_sw2[0], ports_sw2[1]],
@@ -173,8 +174,6 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
     step("Get information for LAG in interface 1 with both switches")
     map_lacp_sw1_p11 = sw1.libs.vtysh.show_lacp_interface(ports_sw1[0])
     map_lacp_sw1_p12 = sw1.libs.vtysh.show_lacp_interface(ports_sw1[1])
-    map_lacp_sw1_p13 = sw1.libs.vtysh.show_lacp_interface(ports_sw1[2])
-    map_lacp_sw1_p14 = sw1.libs.vtysh.show_lacp_interface(ports_sw1[3])
     map_lacp_sw2_p21 = sw2.libs.vtysh.show_lacp_interface(ports_sw2[0])
     map_lacp_sw2_p22 = sw2.libs.vtysh.show_lacp_interface(ports_sw2[1])
     map_lacp_sw2_p23 = sw2.libs.vtysh.show_lacp_interface(ports_sw2[2])
@@ -192,10 +191,6 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
         ports_sw1[0]]
     map_diagdump_lacp_sw1_p12 = sw1_lacp_state[str(sw1_lag_id)][
         ports_sw1[1]]
-    map_diagdump_lacp_sw1_p13 = sw1_lacp_state[str(sw1_lag_id)][
-        ports_sw1[2]]
-    map_diagdump_lacp_sw1_p14 = sw1_lacp_state[str(sw1_lag_id)][
-        ports_sw1[3]]
     map_diagdump_lacp_sw2_p21 = sw2_lacp_state[str(sw2_lag_id)][
         ports_sw2[0]]
     map_diagdump_lacp_sw2_p22 = sw2_lacp_state[str(sw2_lag_id)][
@@ -208,31 +203,23 @@ def test_lacp_agg_key_more_than_one_lag_connected(topology, step):
     step("Validate the LAG was created in both switches")
     validate_lag_state_sync(map_lacp_sw1_p11, LOCAL_STATE)
     validate_lag_state_sync(map_lacp_sw1_p12, LOCAL_STATE)
-    validate_lag_state_out_of_sync(map_lacp_sw1_p13,
-                                   LOCAL_STATE)
-    validate_lag_state_out_of_sync(map_lacp_sw1_p14,
-                                   LOCAL_STATE)
 
     validate_lag_state_sync(map_lacp_sw2_p21, LOCAL_STATE)
     validate_lag_state_sync(map_lacp_sw2_p22, LOCAL_STATE)
-    validate_lag_state_afn(map_lacp_sw2_p23, LOCAL_STATE)
-    validate_lag_state_afn(map_lacp_sw2_p24, LOCAL_STATE)
+    validate_lag_state_out_of_sync(map_lacp_sw2_p23, LOCAL_STATE)
+    validate_lag_state_out_of_sync(map_lacp_sw2_p24, LOCAL_STATE)
 
     # Validate diag-dump results
     validate_diagdump_lag_state_sync(map_diagdump_lacp_sw1_p11,
                                      DIAG_DUMP_LOCAL_STATE)
     validate_diagdump_lag_state_sync(map_diagdump_lacp_sw1_p12,
                                      DIAG_DUMP_LOCAL_STATE)
-    validate_diagdump_lag_state_out_sync(map_diagdump_lacp_sw1_p13,
-                                         DIAG_DUMP_LOCAL_STATE)
-    validate_diagdump_lag_state_out_sync(map_diagdump_lacp_sw1_p14,
-                                         DIAG_DUMP_LOCAL_STATE)
 
     validate_diagdump_lag_state_sync(map_diagdump_lacp_sw2_p21,
                                      DIAG_DUMP_LOCAL_STATE)
     validate_diagdump_lag_state_sync(map_diagdump_lacp_sw2_p22,
                                      DIAG_DUMP_LOCAL_STATE)
-    validate_diagdump_lag_state_afn(map_diagdump_lacp_sw2_p23,
+    validate_diagdump_lag_state_out_sync(map_diagdump_lacp_sw2_p23,
                                     DIAG_DUMP_LOCAL_STATE)
-    validate_diagdump_lag_state_afn(map_diagdump_lacp_sw2_p24,
+    validate_diagdump_lag_state_out_sync(map_diagdump_lacp_sw2_p24,
                                     DIAG_DUMP_LOCAL_STATE)
