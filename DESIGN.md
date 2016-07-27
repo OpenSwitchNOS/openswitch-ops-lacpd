@@ -148,6 +148,14 @@ interface table
       -> user configuration: port identifier override
     lacp-port-priority
       -> user configuration: port priority override
+  interface:mclag_status
+      -> MLAG deamon writes this value
+    actor_port_id
+      -> port id in use for interface
+    actor_key
+      -> MCLAG identifier
+    actor_system_id
+      -> system id in use for interface
 ```
 
 Internal structure
