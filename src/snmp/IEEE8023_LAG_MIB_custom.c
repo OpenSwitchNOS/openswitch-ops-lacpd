@@ -1,4 +1,3 @@
-// Define Custom Functions for IEEE8023_LAG_MIB MIB in this fileNameint lldpPortConfigTable_skip_function(const struct ovsdb_idl *idl, const struct ovsrec_interface *interface_row) {
 #include <stdlib.h>
 #include <net/if.h>
 #include <errno.h>
@@ -55,7 +54,8 @@ int get_lacp_state(const int *state)
 }
 
 int dot3adAggTable_skip_function(struct ovsdb_idl *idl,
-    const struct ovsrec_port *port_row) {
+    const struct ovsrec_port *port_row)
+{
 
     if (strncmp(port_row->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0){
         return 0;
@@ -66,7 +66,8 @@ int dot3adAggTable_skip_function(struct ovsdb_idl *idl,
 
 void dot3adAggIndex_custom_function(struct ovsdb_idl *idl,
                                     const struct ovsrec_port *port_row,
-                                    long *dot3adAggIndex_val_ptr){
+                                    long *dot3adAggIndex_val_ptr)
+{
     char * temp = port_row->name;
     *dot3adAggIndex_val_ptr = atoi(temp);
 }
@@ -74,7 +75,8 @@ void dot3adAggIndex_custom_function(struct ovsdb_idl *idl,
 void dot3adAggActorSystemPriority_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_system *system_row,
-    long *dot3adAggActorSystemPriority_val_ptr){
+    long *dot3adAggActorSystemPriority_val_ptr)
+{
 
     int temp = smap_get_int(&port_row->other_config, PORT_OTHER_CONFIG_MAP_LACP_SYSTEM_PRIORITY,0);
     if(temp == 0){
@@ -90,7 +92,8 @@ void dot3adAggActorSystemID_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_system *system_row,
     char *dot3adAggActorSystemID_val_ptr,
-    size_t *dot3adAggActorSystemID_val_ptr_len){
+    size_t *dot3adAggActorSystemID_val_ptr_len)
+{
 
     char *sys_mac =
         (char *)smap_get(&port_row->other_config, PORT_OTHER_CONFIG_MAP_LACP_SYSTEM_ID);
@@ -112,7 +115,8 @@ void dot3adAggPartnerSystemID_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_interface *interface_row,
     char *dot3adAggPartnerSystemID_val_ptr,
-    size_t *dot3adAggPartnerSystemID_val_ptr_len){
+    size_t *dot3adAggPartnerSystemID_val_ptr_len)
+{
 
     char *system_id = NULL, *system_priority = NULL;
     char *system_priority_id_ovsdb = NULL;
@@ -139,7 +143,8 @@ void dot3adAggPartnerSystemID_custom_function(
 void dot3adAggPartnerSystemPriority_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_interface *interface_row,
-    long *dot3adAggPartnerSystemPriority_val_ptr){
+    long *dot3adAggPartnerSystemPriority_val_ptr)
+{
 
     char *system_priority_id_ovsdb = NULL;
     char *system_id = NULL, *system_priority = NULL;
@@ -166,7 +171,8 @@ void dot3adAggPartnerSystemPriority_custom_function(
 
 void dot3adAggCollectorMaxDelay_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
-    long *dot3adAggCollectorMaxDelay_val_ptr){
+    long *dot3adAggCollectorMaxDelay_val_ptr)
+{
     *dot3adAggCollectorMaxDelay_val_ptr = 1;
 }
 
@@ -193,13 +199,11 @@ void dot3adAggPortListPorts_custom_function(
     const struct ovsrec_interface *if_row = NULL;
     int intf_index=0;
 
-    for (intf_index = 0; intf_index < port_row->n_interfaces; intf_index++)
-    {
+    for (intf_index = 0; intf_index < port_row->n_interfaces; intf_index++){
         if_row = port_row->interfaces[intf_index];
         char *temp = (char *)if_row->name;
         if(dot3adAggPortListPorts_val_ptr_len > 0){
-            if(intf_index == 0)
-            {
+            if(intf_index == 0){
                 strcpy(dot3adAggPortListPorts_val_ptr, temp);
             }else{
                 strcat(dot3adAggPortListPorts_val_ptr,",");
@@ -305,7 +309,8 @@ void dot3adAggPortActorSystemID_custom_function(
 
 void dot3adAggPortPartnerAdminSystemPriority_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_interface *interface_row,
-    long *dot3adAggPortPartnerAdminSystemPriority_val_ptr){
+    long *dot3adAggPortPartnerAdminSystemPriority_val_ptr)
+{
 
     char *system_priority_id_ovsdb = NULL;
     char *system_id = NULL, *system_priority = NULL;
@@ -488,6 +493,7 @@ void dot3adAggPortAttachedAggID_custom_function(
     *dot3adAggPortAttachedAggID_val_ptr = if_idx;
 
 }
+
 void dot3adAggPortActorPort_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_interface *interface_row,
@@ -537,9 +543,9 @@ void dot3adAggPortActorPortPriority_custom_function(
            free(actor_priority_id_ovsdb);
            actor_priority_id_ovsdb = NULL;
        }
-       }else{
-           *dot3adAggPortActorPortPriority_val_ptr = 0;
-       }
+    }else{
+       *dot3adAggPortActorPortPriority_val_ptr = 0;
+    }
 }
 
 void dot3adAggPortPartnerAdminPort_custom_function(

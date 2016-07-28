@@ -29,7 +29,7 @@ void dot3adAggActorSystemPriority_custom_function(
 void dot3adAggActorSystemID_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_system *system_row,
-	char * dot3adAggActorSystemID_val_ptr,
+    char * dot3adAggActorSystemID_val_ptr,
     size_t *dot3adAggActorSystemID_val_ptr_len);
 
 void dot3adAggPartnerSystemID_custom_function(
@@ -40,7 +40,7 @@ void dot3adAggPartnerSystemID_custom_function(
 
 void dot3adAggPartnerSystemPriority_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
-	const struct ovsrec_interface *interface_row,
+    const struct ovsrec_interface *interface_row,
     long *dot3adAggPartnerSystemPriority_val_ptr);
 
 void dot3adAggCollectorMaxDelay_custom_function(
@@ -66,8 +66,8 @@ int dot3adAggPortEntry_skip_function(struct ovsdb_idl *idl,
     const struct ovsrec_interface *interface_row);
 
 void dot3adAggPortIndex_custom_function(struct ovsdb_idl *idl,
-	const struct ovsrec_interface *interface_row,
-	long *dot3adAggPortIndex_val_ptr);
+    const struct ovsrec_interface *interface_row,
+    long *dot3adAggPortIndex_val_ptr);
 
 void dot3adAggPortActorSystemPriority_custom_function(
     struct ovsdb_idl *idl, const struct ovsrec_interface *interface_row,
@@ -80,7 +80,7 @@ void dot3adAggPortActorSystemID_custom_function(
 
 void dot3adAggPortPartnerAdminSystemPriority_custom_function(
     struct ovsdb_idl *idl, 
-	const struct ovsrec_interface *interface_row,
+    const struct ovsrec_interface *interface_row,
     long *dot3adAggPortPartnerAdminSystemPriority_val_ptr);
 
 void dot3adAggPortPartnerOperSystemPriority_custom_function(

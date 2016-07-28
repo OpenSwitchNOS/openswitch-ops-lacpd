@@ -46,43 +46,37 @@ void dot3adAggTable_container_shutdown(netsnmp_container *container_ptr) {
 const struct ovsrec_interface * gethighestPriorityInterfaceforPort(const struct ovsrec_port *port_row )
 {
 
-	int intf_index = 0;
-	char *port_id = NULL, *port_priority = NULL;
-	char *temp = NULL;
-	int interface_ix = 0;
-	int interface_priority = 0;
-	const struct ovsrec_interface *interface_row = NULL;
+    int intf_index = 0;
+    char *port_id = NULL, *port_priority = NULL;
+    char *temp = NULL;
+    int interface_ix = 0;
+    int interface_priority = 0;
+    const struct ovsrec_interface *interface_row = NULL;
+    for (intf_index = 0; intf_index < port_row->n_interfaces; intf_index++){
+        interface_row = port_row->interfaces[intf_index];
+        temp = (char *)smap_get(&interface_row->other_config,
+                       PORT_OTHER_CONFIG_MAP_LACP_SYSTEM_PRIORITY);
+        if (temp == NULL) {
+            temp= strdup(smap_get(&interface_row->lacp_status,
+                         INTERFACE_LACP_STATUS_MAP_ACTOR_PORT_ID));
+            parse_id_from_db(temp, &port_priority, &port_id);
 
-	for (intf_index = 0; intf_index < port_row->n_interfaces; intf_index++)
-	{
+            if(interface_priority > atoi(port_priority) || interface_priority == 0){
+                interface_priority = atoi(port_priority);
+                interface_ix = intf_index;
+            }
 
-		interface_row = port_row->interfaces[intf_index];
-		temp =
-			(char *)smap_get(&interface_row->other_config,
-							 PORT_OTHER_CONFIG_MAP_LACP_SYSTEM_PRIORITY);
-		if (temp == NULL) {
-			temp= strdup(smap_get(&interface_row->lacp_status,
-								  INTERFACE_LACP_STATUS_MAP_ACTOR_PORT_ID));
-			parse_id_from_db(temp, &port_priority, &port_id);
-
-			if(interface_priority > atoi(port_priority) || interface_priority == 0)
-			{
-				interface_priority = atoi(port_priority);
-				interface_ix = intf_index;
-			}
-
-			if (temp){
-				free(temp);
-				temp = NULL;
-			}
-		}
-		else
-		{
-			interface_priority = atoi(temp);
-			interface_ix = intf_index;
-		}
-	}
-	return  port_row->interfaces[interface_ix];
+            if (temp){
+                free(temp);
+                temp = NULL;
+            }
+        }
+	else{
+            interface_priority = atoi(temp);
+            interface_ix = intf_index;
+        }
+    }
+    return  port_row->interfaces[interface_ix];
 }
 
 int dot3adAggTable_container_load(netsnmp_container *container) {
@@ -133,8 +127,8 @@ int dot3adAggTable_container_load(netsnmp_container *container) {
         if (dot3adAggTable_skip_function(idl, port_row)) {
             continue;
         }
-		//Get the highest priority interface
-		interface_row = gethighestPriorityInterfaceforPort(port_row);
+        //Get the highest priority interface
+        interface_row = gethighestPriorityInterfaceforPort(port_row);
 
 
         ovsdb_get_dot3adAggIndex(idl, port_row, &dot3adAggIndex);

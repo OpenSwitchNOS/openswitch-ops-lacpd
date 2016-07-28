@@ -10,13 +10,12 @@
 
 void dot3adAggTable_ovsdb_idl_init(struct ovsdb_idl *idl);
 void ovsdb_get_dot3adAggIndex(struct ovsdb_idl *idl,
-                              const struct ovsrec_port *port_row,
-                              long *dot3adAggIndex_val_ptr);
-
+    const struct ovsrec_port *port_row,
+    long *dot3adAggIndex_val_ptr);
 void ovsdb_get_dot3adAggMACAddress(struct ovsdb_idl *idl,
-								   const struct ovsrec_system *system_row,
-                                   char *dot3adAggMACAddress_val_ptr,
-                                   size_t *dot3adAggMACAddress_val_ptr_len);
+    const struct ovsrec_system *system_row,
+    char *dot3adAggMACAddress_val_ptr,
+    size_t *dot3adAggMACAddress_val_ptr_len);
 void ovsdb_get_dot3adAggActorSystemPriority(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_system *system_row,

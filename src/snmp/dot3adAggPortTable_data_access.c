@@ -53,12 +53,9 @@ int dot3adAggPortTable_container_load(netsnmp_container *container) {
                 "called\n"));
     dot3adAggPortTable_rowreq_ctx *rowreq_ctx;
     size_t count = 0;
-
     const struct ovsrec_port *port_row = NULL;
     const struct ovsrec_interface *interface_row = NULL;
-
     long dot3adAggPortIndex;
-
     long dot3adAggPortActorSystemPriority;
     char dot3adAggPortActorSystemID[255];
     size_t dot3adAggPortActorSystemID_len;
@@ -99,7 +96,7 @@ int dot3adAggPortTable_container_load(netsnmp_container *container) {
     }
 
     OVSREC_INTERFACE_FOR_EACH(interface_row, idl) {
-		if (dot3adAggPortEntry_skip_function(idl, interface_row)) {
+        if (dot3adAggPortEntry_skip_function(idl, interface_row)) {
             continue;
         }
 

@@ -13,16 +13,18 @@ void dot3adAggTable_ovsdb_idl_init(struct ovsdb_idl *idl) {
 }
 
 void ovsdb_get_dot3adAggIndex(struct ovsdb_idl *idl,
-                              const struct ovsrec_port *port_row,
-                              long *dot3adAggIndex_val_ptr) {
+    const struct ovsrec_port *port_row,
+    long *dot3adAggIndex_val_ptr) {
+
     char * temp = port_row->name;
     *dot3adAggIndex_val_ptr = atoi(temp);
 }
 
 void ovsdb_get_dot3adAggMACAddress(struct ovsdb_idl *idl,
-								   const struct ovsrec_system *system_row,
-                                   char *dot3adAggMACAddress_val_ptr,
-                                   size_t *dot3adAggMACAddress_val_ptr_len) {
+    const struct ovsrec_system *system_row,
+    char *dot3adAggMACAddress_val_ptr,
+    size_t *dot3adAggMACAddress_val_ptr_len) {
+
     char *temp = (char *)system_row->system_mac;
     *dot3adAggMACAddress_val_ptr_len = temp != NULL ? strlen(temp) : 0;
     memcpy(dot3adAggMACAddress_val_ptr, temp, *dot3adAggMACAddress_val_ptr_len);
@@ -58,13 +60,14 @@ void ovsdb_get_dot3adAggActorAdminKey(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
     const struct ovsrec_interface *interface_row,
     long *dot3adAggActorAdminKey_val_ptr) {
+
     char *temp =
-	(char *)smap_get(&interface_row->other_config,
+    (char *)smap_get(&interface_row->other_config,
             INTERFACE_OTHER_CONFIG_MAP_LACP_AGGREGATION_KEY);
-	if (temp == NULL) {
-            *dot3adAggActorAdminKey_val_ptr = 0;
-	} else {
-            *dot3adAggActorAdminKey_val_ptr = (long)atoi(temp);
+    if (temp == NULL) {
+        *dot3adAggActorAdminKey_val_ptr = 0;
+    } else {
+        *dot3adAggActorAdminKey_val_ptr = (long)atoi(temp);
     }
 }
 
@@ -78,7 +81,7 @@ void ovsdb_get_dot3adAggActorOperKey(
         *dot3adAggActorOperKey_val_ptr = 0;
     } else {
         *dot3adAggActorOperKey_val_ptr = (long)atoi(temp);
-	}
+    }
 }
 
 void ovsdb_get_dot3adAggPartnerSystemID(
@@ -93,7 +96,7 @@ void ovsdb_get_dot3adAggPartnerSystemID(
 
 void ovsdb_get_dot3adAggPartnerSystemPriority(
     struct ovsdb_idl *idl, const struct ovsrec_port *port_row,
-	const struct ovsrec_interface *interface_row,
+    const struct ovsrec_interface *interface_row,
     long *dot3adAggPartnerSystemPriority_val_ptr) {
     dot3adAggPartnerSystemPriority_custom_function(
         idl, port_row,interface_row, dot3adAggPartnerSystemPriority_val_ptr);
@@ -107,10 +110,10 @@ void ovsdb_get_dot3adAggPartnerOperKey(
         (char *)smap_get(&interface_row->lacp_status,
             INTERFACE_LACP_STATUS_MAP_PARTNER_KEY);
 
-	if(temp == NULL)
-            *dot3adAggPartnerOperKey_val_ptr = 0;
-	else
-            *dot3adAggPartnerOperKey_val_ptr = atoi(temp);
+    if(temp == NULL)
+        *dot3adAggPartnerOperKey_val_ptr = 0;
+    else
+        *dot3adAggPartnerOperKey_val_ptr = atoi(temp);
 
 }
 

@@ -12,8 +12,8 @@ void dot3adAggPortTable_ovsdb_idl_init(struct ovsdb_idl *idl) {
     ovsdb_idl_add_column(idl, &ovsrec_port_col_name);
 }
 void ovsdb_get_dot3adAggPortIndex(struct ovsdb_idl *idl,
-	const struct ovsrec_interface *interface_row,
-	long *dot3adAggPortIndex_val_ptr){
+    const struct ovsrec_interface *interface_row,
+    long *dot3adAggPortIndex_val_ptr){
     dot3adAggPortIndex_custom_function(idl, interface_row,
                                   dot3adAggPortIndex_val_ptr);
 }
