@@ -73,8 +73,8 @@ TOPOLOGY = """
 [type=host name="Host 2"] hs2
 
 # Links
-sw1:1 -- sw2:1
-sw1:2 -- sw2:2
+[rate="Ethernet-1Gb"] sw1:1 -- sw2:1
+[rate="Ethernet-1Gb"] sw1:2 -- sw2:2
 sw2:3 -- hs2:1
 sw1:3 -- hs1:1
 """

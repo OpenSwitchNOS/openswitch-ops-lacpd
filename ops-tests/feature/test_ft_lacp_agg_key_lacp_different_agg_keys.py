@@ -52,8 +52,8 @@ TOPOLOGY = """
 [type=openswitch name="Switch 2"] sw2
 
 # Links
-sw1:1 -- sw2:1
-sw1:2 -- sw2:2
+[rate="Ethernet-1Gb"] sw1:1 -- sw2:1
+[rate="Ethernet-1Gb"] sw1:2 -- sw2:2
 """
 
 

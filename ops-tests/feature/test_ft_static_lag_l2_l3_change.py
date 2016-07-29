@@ -77,10 +77,10 @@ TOPOLOGY = """
 [type=host name="Host 2"] hs2
 
 # Links
-hs1:1 -- sw1:1
-sw1:2 -- sw2:2
-sw1:3 -- sw2:3
-sw2:1 -- hs2:1
+hs1:1 -- sw1:3
+[rate="Ethernet-1Gb"] sw1:1 -- sw2:1
+[rate="Ethernet-1Gb"] sw1:2 -- sw2:2
+sw2:3 -- hs2:1
 """
 
 
@@ -148,18 +148,18 @@ def test_l2_l3_switch_case_1(topology, step):
     create_lag(sw1, sw1_lag_id, 'off')
     create_lag(sw2, sw2_lag_id, 'off')
 
-    step("Associate interfaces [2, 3] to LAG in both switches")
-    for intf in ports_sw1[1:3]:
+    step("Associate interfaces [1, 2] to LAG in both switches")
+    for intf in ports_sw1[0:2]:
         associate_interface_to_lag(sw1, intf, sw1_lag_id)
 
-    for intf in ports_sw2[1:3]:
+    for intf in ports_sw2[0:2]:
         associate_interface_to_lag(sw2, intf, sw2_lag_id)
 
     step("Configure LAGs and workstations interfaces with same VLAN")
     associate_vlan_to_lag(sw1, vlan_identifier, sw1_lag_id)
     associate_vlan_to_lag(sw2, vlan_identifier, sw2_lag_id)
-    associate_vlan_to_l2_interface(sw1, vlan_identifier, ports_sw1[0])
-    associate_vlan_to_l2_interface(sw2, vlan_identifier, ports_sw2[0])
+    associate_vlan_to_l2_interface(sw1, vlan_identifier, ports_sw1[2])
+    associate_vlan_to_l2_interface(sw2, vlan_identifier, ports_sw2[2])
 
     step("Test ping between clients")
     verify_connectivity_between_hosts(hs1, hs1_ip_address, hs2, hs2_ip_address)

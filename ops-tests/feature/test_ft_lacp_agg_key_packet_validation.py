@@ -53,13 +53,13 @@ TOPOLOGY = """
 [type=openswitch name="Switch 2"] sw2
 
 # Links
-sw1:1 -- sw2:1
-sw1:2 -- sw2:2
+[rate="Ethernet-1Gb"] sw1:1 -- sw2:1
+[rate="Ethernet-1Gb"] sw1:2 -- sw2:2
 """
 
 
 @pytest.mark.skipif(True, reason="Skipping due to instability")
-def lacp_aggregation_key_packet_validation(topology):
+def lacp_aggregation_key_packet_validation(topology, step):
     """
     Aggregation Key packet validation:
         Capture LACPDUs packets and validate the aggregation
@@ -70,12 +70,25 @@ def lacp_aggregation_key_packet_validation(topology):
     sw1_lag_id = '100'
     sw2_lag_id = '200'
 
-    p11 = sw1.ports['1']
-    p12 = sw1.ports['2']
-    p21 = sw2.ports['1']
-    p22 = sw2.ports['2']
+    ports_sw1 = list()
+    ports_sw2 = list()
+    port_labels = ['1', '2']
 
-    print("Turning on all interfaces used in this test")
+    step("Mapping interfaces")
+    for port in port_labels:
+        ports_sw1.append(sw1.ports[port])
+        ports_sw2.append(sw2.ports[port])
+
+    step("Sorting the port list")
+    ports_sw1.sort()
+    ports_sw2.sort()
+
+    p11 = sw1.ports[0]
+    p12 = sw1.ports[1]
+    p21 = sw2.ports[0]
+    p22 = sw2.ports[1]
+
+    step("Turning on all interfaces used in this test")
     ports_sw1 = [p11, p12]
     for port in ports_sw1:
         turn_on_interface(sw1, port)
@@ -84,20 +97,20 @@ def lacp_aggregation_key_packet_validation(topology):
     for port in ports_sw2:
         turn_on_interface(sw2, port)
 
-    print("Wait for interfaces to turn on")
+    step("Wait for interfaces to turn on")
     time.sleep(60)
 
     validate_turn_on_interfaces(sw1, ports_sw1)
     validate_turn_on_interfaces(sw2, ports_sw2)
 
-    print("Create LAG in both switches")
+    step("Create LAG in both switches")
     create_lag_active(sw1, sw1_lag_id)
     create_lag_passive(sw2, sw2_lag_id)
 
     set_lacp_rate_fast(sw1, sw1_lag_id)
     set_lacp_rate_fast(sw2, sw2_lag_id)
 
-    print("Associate interfaces [1,2] to lag in both switches")
+    step("Associate interfaces [1,2] to lag in both switches")
     associate_interface_to_lag(sw1, p11, sw1_lag_id)
     associate_interface_to_lag(sw1, p12, sw1_lag_id)
     associate_interface_to_lag(sw2, p21, sw2_lag_id)
@@ -105,11 +118,11 @@ def lacp_aggregation_key_packet_validation(topology):
 
     sw1_mac = get_device_mac_address(sw1, p11)
 
-    print("Take capture from interface 1 in switch 1")
+    step("Take capture from interface 1 in switch 1")
     capture = tcpdump_capture_interface(sw1, p11, 80)
     tcpdump_capture_interface(sw1, p12, 80)
 
-    print("Validate actor and partner key from sw1 packets")
+    step("Validate actor and partner key from sw1 packets")
     sw1_actor = get_info_from_packet_capture(capture,
                                              ACTOR,
                                              sw1_mac)
