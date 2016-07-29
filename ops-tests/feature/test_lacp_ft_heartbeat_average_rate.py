@@ -135,6 +135,10 @@ def main_setup(request, topology):
         ports_sw1.append(sw1.ports[port])
         ports_sw2.append(sw2.ports[port])
 
+    print("Sorting the port list")
+    ports_sw1.sort()
+    ports_sw2.sort()
+
     print("Turning on all interfaces used in this test")
     for port in ports_sw1:
         turn_on_interface(sw1, port)
