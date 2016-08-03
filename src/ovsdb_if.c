@@ -1355,47 +1355,53 @@ update_interface_bond_status_map_entry(struct iface_data *idp)
     struct smap_node *node;
     bool rx_enable = false;
     bool tx_enable = false;
+    bool mclag_enable = false;
 
     ifrow = idp->cfg;
     smap_init(&smap);
 
     if (idp->link_state == INTERFACE_LINK_STATE_UP) {
 
-        SMAP_FOR_EACH(node, &ifrow->hw_bond_config) {
+        mclag_enable = smap_get_bool(&idp->port_datap->cfg->other_config,
+                                     "mclag_enable",
+                                     false);
+        if(!mclag_enable){
+            SMAP_FOR_EACH(node, &ifrow->hw_bond_config) {
 
-            if (!strncmp(node->key,
-                         INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
-                         strlen(INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED))
-                && !strncmp(node->value,
-                            INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE,
-                            strlen(INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE))) {
-                rx_enable = true;
-            }
-            else if (!strncmp(node->key,
-                     INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
-                     strlen(INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED))
-                     && !strncmp(node->value,
-                                 INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE,
-                                 strlen(INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE))) {
-                tx_enable = true;
+             if (!strncmp(node->key,
+                             INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
+                             strlen(INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED))
+                    && !strncmp(node->value,
+                                INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE,
+                                strlen(INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE))) {
+                    rx_enable = true;
+                }
+                else if (!strncmp(node->key,
+                         INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
+                         strlen(INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED))
+                         && !strncmp(node->value,
+                                     INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE,
+                                     strlen(INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE))) {
+                    tx_enable = true;
+                }
             }
         }
 
-        if (tx_enable && rx_enable) {
+        if ((tx_enable && rx_enable) || mclag_enable) {
             smap_replace(&smap,
-                         INTERFACE_BOND_STATUS_UP,
-                         INTERFACE_BOND_STATUS_ENABLED_TRUE);
+                         INTERFACE_BOND_STATUS_MAP_STATE,
+                         INTERFACE_BOND_STATUS_UP);
         } else {
             smap_replace(&smap,
-                         INTERFACE_BOND_STATUS_BLOCKED,
-                         INTERFACE_BOND_STATUS_ENABLED_TRUE);
+                         INTERFACE_BOND_STATUS_MAP_STATE,
+                         INTERFACE_BOND_STATUS_BLOCKED);
         }
     }
     /* Interface link is down */
     else {
         smap_replace(&smap,
-                     INTERFACE_BOND_STATUS_DOWN,
-                     INTERFACE_BOND_STATUS_ENABLED_TRUE);
+                     INTERFACE_BOND_STATUS_MAP_STATE,
+                     INTERFACE_BOND_STATUS_DOWN);
     }
 
     ovsrec_interface_set_bond_status(ifrow, &smap);
@@ -1418,9 +1424,7 @@ remove_interface_bond_status_map_entry(struct iface_data *idp)
 
     ifrow = idp->cfg;
     smap_init(&smap);
-    smap_remove(&smap, INTERFACE_BOND_STATUS_DOWN);
-    smap_remove(&smap, INTERFACE_BOND_STATUS_BLOCKED);
-    smap_remove(&smap, INTERFACE_BOND_STATUS_UP);
+    smap_remove(&smap, INTERFACE_BOND_STATUS_MAP_STATE);
 
     ovsrec_interface_set_bond_status(ifrow, &smap);
     smap_destroy(&smap);
@@ -1465,15 +1469,15 @@ update_port_bond_status_map_entry(struct port_data *portp)
             ifrow = idp->cfg;
             SMAP_FOR_EACH(snode, &ifrow->bond_status) {
 
-                if (!strncmp(snode->key,
+                if (!strncmp(snode->value,
                              INTERFACE_BOND_STATUS_UP,
                              strlen(INTERFACE_BOND_STATUS_UP))) {
                     up_intf++;
-                } else if (!strncmp(snode->key,
+                } else if (!strncmp(snode->value,
                            INTERFACE_BOND_STATUS_BLOCKED,
                            strlen(INTERFACE_BOND_STATUS_BLOCKED))) {
                     blocked_intf++;
-                } else if (!strncmp(snode->key,
+                } else if (!strncmp(snode->value,
                            INTERFACE_BOND_STATUS_DOWN,
                            strlen(INTERFACE_BOND_STATUS_DOWN))) {
                     down_intf++;
@@ -1485,17 +1489,17 @@ update_port_bond_status_map_entry(struct port_data *portp)
     }
 
     if (down_intf == total_intf) {
-           smap_replace(&smap,
-                        PORT_BOND_STATUS_DOWN,
-                        PORT_BOND_STATUS_ENABLED_TRUE);
+        smap_replace(&smap,
+                     PORT_BOND_STATUS_MAP_STATE,
+                     PORT_BOND_STATUS_DOWN);
     } else if (blocked_intf == total_intf) {
         smap_replace(&smap,
-                     PORT_BOND_STATUS_BLOCKED,
-                     PORT_BOND_STATUS_ENABLED_TRUE);
+                     PORT_BOND_STATUS_MAP_STATE,
+                     PORT_BOND_STATUS_BLOCKED);
     } else if (up_intf > 0) {
         smap_replace(&smap,
-                     PORT_BOND_STATUS_UP,
-                     PORT_BOND_STATUS_ENABLED_TRUE);
+                     PORT_BOND_STATUS_MAP_STATE,
+                     PORT_BOND_STATUS_UP);
     }
 
     ovsrec_port_set_bond_status(portp->cfg, &smap);
@@ -1516,25 +1520,35 @@ static void
 set_interface_lag_eligibility(struct port_data *portp, struct iface_data *idp,
                               bool eligible)
 {
+    bool mclag_enable = false;
+
     if (eligible == idp->lag_eligible) {
         return;
     }
 
-    if (portp->lacp_mode == PORT_LACP_OFF) {
-        /* Static LAG configuration in hardware. */
-        update_interface_hw_bond_config_map_entry(
-            idp,
-            INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
-            eligible == true
-            ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
-            : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+    mclag_enable = smap_get_bool(&idp->port_datap->cfg->other_config,
+                                 "mclag_enable",
+                                 false);
 
-        update_interface_hw_bond_config_map_entry(
-            idp,
-            INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
-            eligible == true
-            ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
-            : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+    if (portp->lacp_mode == PORT_LACP_OFF) {
+
+        /* if mclar is enable dont write rx_enable/tx_enable on OVSDB, just bond status is updated */
+        if(!mclag_enable){
+            /* Static LAG configuration in hardware. */
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
+                eligible == true
+                ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
+                : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+
+             update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
+                eligible == true
+                ? INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE
+                : INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+        }
     } else {
         /* NOTE: For Ports in dynamic LACP mode, eligible interfaces
          * mean the LACP is run on the interfaces.  LACP state machine
@@ -1546,17 +1560,20 @@ set_interface_lag_eligibility(struct port_data *portp, struct iface_data *idp,
         idp->lacp_state = (eligible? LACP_STATE_ENABLED :
                                      LACP_STATE_DISABLED);
 
-        /* If lacp mode, and state is disabled, set RX/TX to disabled */
-        if (idp->lacp_state == LACP_STATE_DISABLED) {
-            update_interface_hw_bond_config_map_entry(
-                idp,
-                INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
-                INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+        /* if mclar is enable dont write rx_enable/tx_enable on OVSDB, just bond status is updated */
+        if(!mclag_enable){
+            /* If lacp mode, and state is disabled, set RX/TX to disabled */
+            if (idp->lacp_state == LACP_STATE_DISABLED) {
+                update_interface_hw_bond_config_map_entry(
+                    idp,
+                    INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
+                    INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
 
-            update_interface_hw_bond_config_map_entry(
-                idp,
-                INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
-                INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+                update_interface_hw_bond_config_map_entry(
+                    idp,
+                    INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
+                    INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE);
+            }
         }
         send_config_lport_msg(idp);
     }
@@ -2677,32 +2694,40 @@ lacpd_thread_intf_update_hw_bond_config(struct iface_data *idp,
                                         bool update_tx, bool tx_enabled)
 {
     struct ovsdb_idl_txn *txn;
+	bool mclag_enabled = false;
 
     OVSDB_LOCK;
     txn = ovsdb_idl_txn_create(idl);
-    if (update_rx) {
-        update_interface_hw_bond_config_map_entry(
-            idp,
-            INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
-            (rx_enabled ?
-             INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE :
-             INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE));
 
-        update_member_interface_bond_status(idp->port_datap);
-        update_port_bond_status_map_entry(idp->port_datap);
-    }
-    if (update_tx) {
-        update_interface_hw_bond_config_map_entry(
-            idp,
-            INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
-            (tx_enabled ?
-             INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE :
-             INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE));
+	mclag_enabled = smap_get_bool(&(idp->port_datap->cfg->other_config),
+								  "mclag_enabled",
+								  false);
+	if(!mclag_enabled)
+	{
+        if (update_rx) {
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_RX_ENABLED,
+                (rx_enabled ?
+                 INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE :
+                 INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE));
 
-        update_member_interface_bond_status(idp->port_datap);
-        update_port_bond_status_map_entry(idp->port_datap);
-    }
+            update_member_interface_bond_status(idp->port_datap);
+            update_port_bond_status_map_entry(idp->port_datap);
+        }
+        if (update_tx) {
+            update_interface_hw_bond_config_map_entry(
+                idp,
+                INTERFACE_HW_BOND_CONFIG_MAP_TX_ENABLED,
+                (tx_enabled ?
+                 INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_TRUE :
+                 INTERFACE_HW_BOND_CONFIG_MAP_ENABLED_FALSE));
 
+            update_member_interface_bond_status(idp->port_datap);
+            update_port_bond_status_map_entry(idp->port_datap);
+
+		}
+	}
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
     OVSDB_UNLOCK;
