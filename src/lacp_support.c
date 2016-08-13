@@ -26,6 +26,8 @@
 #include <avl.h>
 #include <nlib.h>
 
+#include <eventlog.h>
+
 #include "lacp_stubs.h"
 #include <pm_cmn.h>
 #include <lacp_cmn.h>
@@ -38,6 +40,7 @@
 #include "mvlan_sport.h"
 #include "lacp_ops_if.h"
 #include <vswitch-idl.h>
+
 
 VLOG_DEFINE_THIS_MODULE(lacpd_support);
 
@@ -1007,7 +1010,7 @@ display_lacpdu(lacpdu_payload_t *lacpdu_payload,
   printf("Actor System Priority: %d\n", ntohs(lacpdu_payload->actor_system_priority));
 
   L2_hexmac_to_strmac((u8_t*)lacpdu_payload->actor_system,
-		              mac_addr_str, sizeof(mac_addr_str), L2_MAC_TWOxSIX);
+                      mac_addr_str, sizeof(mac_addr_str), L2_MAC_TWOxSIX);
   printf("Actor system MAC : %s\n", mac_addr_str);
   printf("Actor Key: %d\n", ntohs(lacpdu_payload->actor_key));
   printf("Actor Port Priority: %d\n", ntohs(lacpdu_payload->actor_port_priority));
@@ -1018,7 +1021,7 @@ display_lacpdu(lacpdu_payload_t *lacpdu_payload,
   printf("Partner System Priority: %d\n", ntohs(lacpdu_payload->partner_system_priority));
 
   L2_hexmac_to_strmac((u8_t*)lacpdu_payload->partner_system,
-		              mac_addr_str, sizeof(mac_addr_str), L2_MAC_TWOxSIX);
+                      mac_addr_str, sizeof(mac_addr_str), L2_MAC_TWOxSIX);
   printf("Partner system MAC: %s\n", mac_addr_str);
   printf("Partner Key: %d\n", ntohs(lacpdu_payload->partner_key));
   printf("Partner Port Priority: %d\n", ntohs(lacpdu_payload->partner_port_priority));
@@ -1232,12 +1235,31 @@ void
 set_lport_fallback_params(port_handle_t lport_handle, enum fallback_mode mode, int timeout)
 {
     lacp_per_port_variables_t *plpinfo = NULL;
+    int port;
+    struct iface_data *idp = NULL;
 
     plpinfo = LACP_AVL_FIND(lacp_per_port_vars_tree, &lport_handle);
 
     if (plpinfo != NULL) {
         plpinfo->ovs_timeout = timeout;
         plpinfo->fallback_mode = mode;
+
+        port = PM_HANDLE2PORT(lport_handle);
+        idp = find_iface_data_by_index(port);
+        if(idp) {
+            if (log_event("LACP_FALLBACK_MODE_SET",
+                          EV_KV("lag_id", "%d", idp->cfg_lag_id),
+                          EV_KV("lacp_fallback_mode", "%s", mode? "all_active":"priority")
+                          ) < 0) {
+                VLOG_ERR("Could not log event LACP_FALLBACK_MODE_SET");
+            }
+            if (log_event("LACP_FALLBACK_TIMEOUT_SET",
+                          EV_KV("lag_id", "%d", idp->cfg_lag_id),
+                          EV_KV("lacp_fallback_timeout", "%d", timeout)
+                          ) < 0) {
+                VLOG_ERR("Could not log event LACP_FALLBACK_TIMEOUT_SET");
+            }
+        }
 
         LACP_receive_fsm(E9,
                          plpinfo->recv_fsm_state,

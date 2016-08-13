@@ -20,11 +20,13 @@
 #include <string.h>
 #include <strings.h>
 
+
 #include "lacp_cmn.h"
 #include <avl.h>
 #include <nlib.h>
 
 #include <pm_cmn.h>
+#include <eventlog.h>
 
 #include "lacp_stubs.h"
 #include <lacp_cmn.h>
@@ -35,6 +37,8 @@
 #include "mvlan_lacp.h"
 #include "lacp_support.h"
 #include "mlacp_fproto.h"
+#include "lacp_ops_if.h"
+
 
 VLOG_DEFINE_THIS_MODULE(lacp_task);
 
@@ -294,6 +298,9 @@ LACP_current_while_expiry(void)
 static void
 fallback_timer_expiry(lacp_per_port_variables_t *plpinfo)
 {
+    int port;
+    struct iface_data *idp = NULL;
+
     RENTRY();
 
     RDEBUG(DL_TIMERS, "%s: lport 0x%llx\n", __FUNCTION__, plpinfo->lport_handle);
@@ -314,6 +321,16 @@ fallback_timer_expiry(lacp_per_port_variables_t *plpinfo)
              *  Generate E2 event
              *********************************************************************/
             plpinfo->fallback_timer_expired = true;
+
+            port = PM_HANDLE2PORT(plpinfo->lport_handle);
+            idp = find_iface_data_by_index(port);
+            if (idp &&
+                log_event("LACP_FALLBACK_TIMEOUT_EXPIRED",
+                          EV_KV("lag_id", "%d", idp->cfg_lag_id),
+                          EV_KV("lacp_fallback_timeout", "%s", plpinfo->ovs_timeout)
+                          ) < 0) {
+                VLOG_ERR("Could not log event LACP_FALLBACK_TIMEOUT_EXPIRED");
+            }
 
             if (plpinfo->debug_level & DBG_RX_FSM) {
                 RDBG("%s : Generate E2 (lport 0x%llx)\n", __FUNCTION__, plpinfo->lport_handle);
