@@ -122,16 +122,23 @@ vtysh_intf_lag_context_clientcallback(void *p_private)
   vtysh_ovsdb_cbmsg_ptr p_msg = (vtysh_ovsdb_cbmsg *)p_private;
   const char *data = NULL;
   const struct ovsrec_port *port_row = NULL;
+  const struct ovsrec_mclag *mclag_row = NULL;
   char * hash_prefix = NULL;
   int i;
 
+  mclag_row = ovsrec_mclag_first(p_msg->idl);
   OVSREC_PORT_FOR_EACH(port_row, p_msg->idl)
   {
     if(strncmp(port_row->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0)
     {
-      /* Print the LAG port name because lag port is present. */
-      vtysh_ovsdb_cli_print(p_msg, "interface lag %d",
+         /* Print the LAG port name because lag port is present. */
+      if(strcmp(smap_get(&port_row->other_config,"mclag_enabled"),
+                     "true")==0)
+         vtysh_ovsdb_cli_print(p_msg, "interface lag %d multi-chassis",
                           atoi(&port_row->name[LAG_PORT_NAME_PREFIX_LENGTH]));
+      else
+         vtysh_ovsdb_cli_print(p_msg, "interface lag %d",
+                            atoi(&port_row->name[LAG_PORT_NAME_PREFIX_LENGTH]));
 
       data = port_row->admin;
       if(data && strncmp(data,
@@ -145,6 +152,14 @@ vtysh_intf_lag_context_clientcallback(void *p_private)
           vtysh_ovsdb_cli_print(p_msg, "%4s%s", "", "no routing");
           vtysh_ovsdb_porttable_parse_vlan(port_row->name, p_msg);
       }
+      if(mclag_row && mclag_row->isl_port)
+      {
+          if(strcmp(port_row->name,mclag_row->isl_port->name)==0)
+          {
+              vtysh_ovsdb_cli_print(p_msg, "%4s%s", "", "mclag inter-switch-link");
+          }
+      }
+
       data = port_row->lacp;
       if(data && strcmp(data, OVSREC_PORT_LACP_OFF) != 0)
       {
