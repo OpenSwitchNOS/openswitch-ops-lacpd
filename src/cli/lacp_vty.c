@@ -53,6 +53,11 @@
 #include "vtysh_ovsdb_intf_lag_context.h"
 #include "vrf-utils.h"
 
+#define IP_ADDRESS_LENGTH    18
+#define IPV6_ADDRESS_LENGTH  49
+
+#define PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED "mclag_enabled"
+
 VLOG_DEFINE_THIS_MODULE(vtysh_lacp_cli);
 extern struct ovsdb_idl *idl;
 
@@ -124,15 +129,20 @@ static struct cmd_node link_aggregation_node =
 
 DEFUN (vtysh_intf_link_aggregation,
        vtysh_intf_link_aggregation_cmd,
-       "interface lag <1-2000>",
+       "interface lag <1-2000> {multi-chassis}",
        "Select an interface to configure\n"
        "Configure link-aggregation parameters\n"
        "LAG number ranges from 1 to 2000\n")
 {
   const struct ovsrec_port *port_row = NULL;
+  const struct ovsrec_bridge *bridge_row = NULL;
+  const struct ovsrec_bridge *default_bridge_row = NULL;
+  struct ovsrec_port **bridge_ports;
+  int64_t* tag = NULL;
   bool port_found = false;
   struct ovsdb_idl_txn *txn = NULL;
   enum ovsdb_idl_txn_status status_txn;
+  struct smap smap = SMAP_INITIALIZER(&smap);
   static char lag_number[LAG_NAME_LENGTH]={0};
   const struct ovsrec_vrf *default_vrf_row = NULL;
   const struct ovsrec_vrf *vrf_row = NULL;
@@ -169,34 +179,99 @@ DEFUN (vtysh_intf_link_aggregation,
 
     port_row = ovsrec_port_insert(txn);
     ovsrec_port_set_name(port_row, lag_number);
-
-    OVSREC_VRF_FOR_EACH (vrf_row, idl)
+    if(argv[1] && strcmp(argv[1],"multi-chassis") == 0)
     {
+      OVSREC_BRIDGE_FOR_EACH (bridge_row, idl)
+      {
+        if (strcmp(bridge_row->name, DEFAULT_BRIDGE_NAME) == 0) {
+           default_bridge_row = bridge_row;
+           break;
+        }
+      }
+      if (!default_bridge_row) {
+          vty_out(vty, "No default bridge record found%s", VTY_NEWLINE);
+          cli_do_config_abort(txn);
+          smap_destroy(&smap);
+          return CMD_SUCCESS;
+      }
+
+     /* if (default_bridge_row->mstp_enable) {
+          vty_out(vty, "Spanning-tree is enabled cannot create multi-chassis LAG%s", VTY_NEWLINE);
+          cli_do_config_abort(txn);
+          smap_destroy(&smap);
+          return CMD_SUCCESS;
+      }*/
+
+      /* making interface as L2*/
+      ops_port_set_trunks(NULL, 0, port_row, idl);
+
+      ops_port_set_tag(DEFAULT_VLAN, port_row, idl);
+      smap_clone(&smap, &port_row->other_config);
+      smap_remove(&smap, PORT_HW_CONFIG_MAP_INTERNAL_VLAN_ID);
+      ovsrec_port_set_hw_config(port_row, &smap);
+      smap_destroy(&smap);
+
+      free(tag);
+
+      bridge_ports = xmalloc(sizeof *default_bridge_row->ports
+           * (default_bridge_row->n_ports + 1));
+      for (i = 0; i < default_bridge_row->n_ports; i++) {
+           bridge_ports[i] = default_bridge_row->ports[i];
+      }
+      struct ovsrec_port *temp_port_row = CONST_CAST(struct ovsrec_port*, port_row);
+      bridge_ports[default_bridge_row->n_ports] = temp_port_row;
+      ovsrec_bridge_set_ports(default_bridge_row, bridge_ports,
+          (default_bridge_row->n_ports + 1));
+      free(bridge_ports);
+      ovsrec_port_set_ip4_address(port_row, NULL);
+      ovsrec_port_set_ip4_address_secondary(port_row, NULL, 0);
+      ovsrec_port_set_ip6_address(port_row, NULL);
+      ovsrec_port_set_ip6_address_secondary(port_row, NULL, 0);
+      /* setting lacp mode to active for multi-chassis*/
+      ovsrec_port_set_lacp(port_row, "active");
+      /* setting fallback to false for multi-chassis*/
+      smap_clone(&smap,&port_row->other_config);
+      smap_remove(&smap, PORT_OTHER_CONFIG_LACP_FALLBACK);
+      /* settinf LAG type to multi-chassis*/
+      smap_replace(&smap,PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED,"true");
+      ovsrec_port_set_other_config(port_row,&smap);
+      smap_destroy(&smap);
+    }
+
+    else
+    {
+      smap_replace(&smap,PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED,"false");
+
+      ovsrec_port_set_other_config(port_row,&smap);
+      smap_destroy(&smap);
+      OVSREC_VRF_FOR_EACH (vrf_row, idl)
+      {
         if (strcmp(vrf_row->name, DEFAULT_VRF_NAME) == 0) {
            default_vrf_row = vrf_row;
             break;
         }
-    }
+      }
 
-    if(default_vrf_row == NULL)
-    {
-      assert(0);
-      VLOG_DBG("Couldn't fetch default VRF row. Function=%s, Line=%d",
-                __func__, __LINE__);
-      cli_do_config_abort(txn);
-      return CMD_OVSDB_FAILURE;
-    }
+      if(default_vrf_row == NULL)
+      {
+        assert(0);
+        VLOG_DBG("Couldn't fetch default VRF row. Function=%s, Line=%d",
+                  __func__, __LINE__);
+        cli_do_config_abort(txn);
+        return CMD_OVSDB_FAILURE;
+      }
 
-    ports = xmalloc(sizeof *default_vrf_row->ports *
-                   (default_vrf_row->n_ports + 1));
-    for (i = 0; i < default_vrf_row->n_ports; i++)
-    {
-      ports[i] = default_vrf_row->ports[i];
+      ports = xmalloc(sizeof *default_vrf_row->ports *
+                     (default_vrf_row->n_ports + 1));
+      for (i = 0; i < default_vrf_row->n_ports; i++)
+      {
+        ports[i] = default_vrf_row->ports[i];
+      }
+      ports[default_vrf_row->n_ports] = CONST_CAST(struct ovsrec_port*,port_row);
+      ovsrec_vrf_set_ports(default_vrf_row, ports,
+                           default_vrf_row->n_ports + 1);
+      free(ports);
     }
-    ports[default_vrf_row->n_ports] = CONST_CAST(struct ovsrec_port*,port_row);
-    ovsrec_vrf_set_ports(default_vrf_row, ports,
-                         default_vrf_row->n_ports + 1);
-    free(ports);
 
     status_txn = cli_do_config_finish(txn);
     if(status_txn == TXN_SUCCESS || status_txn == TXN_UNCHANGED)
@@ -213,6 +288,16 @@ DEFUN (vtysh_intf_link_aggregation,
   }
   else
   {
+    smap_clone(&smap,&port_row->other_config);
+    if(strcmp(smap_get(&smap,
+                    PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),"false") == 0)
+    {
+       if(strcmp(argv[1],"multi-chassis") == 0)
+       {
+           vty_out(vty, "Lag already exists, cannot be configured as multi-chassis \n");
+       }
+    }
+    smap_destroy(&smap);
     vty->node = LINK_AGGREGATION_NODE;
     vty->index = lag_number;
     return CMD_SUCCESS;
@@ -387,6 +472,7 @@ lacp_set_mode(const char *lag_name, const char *mode_to_set, const char *present
   const struct ovsrec_port *port_row = NULL;
   bool port_found = false;
   struct ovsdb_idl_txn* txn = NULL;
+  struct smap smap = SMAP_INITIALIZER(&smap);
   enum ovsdb_idl_txn_status status;
 
   txn = cli_do_config_start();
@@ -405,7 +491,16 @@ lacp_set_mode(const char *lag_name, const char *mode_to_set, const char *present
       break;
     }
   }
-
+  smap_clone(&smap,&port_row->other_config);
+  if(strcmp(smap_get(&smap,PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),
+              "true") == 0)
+  {
+      vty_out(vty,"Lag is multi-chassis cannot change the mode\n");
+      smap_destroy(&smap);
+      cli_do_config_abort(txn);
+      return CMD_SUCCESS;
+  }
+  smap_destroy(&smap);
   if(!port_found)
   {
     /* assert - as LAG port should be present in DB. */
@@ -578,6 +673,15 @@ lacp_set_fallback(const char *lag_name, bool fallback_enabled)
                  __func__,__LINE__);
         cli_do_config_abort(txn);
         return CMD_OVSDB_FAILURE;
+    }
+    smap_clone(&smap, &port_row->other_config);
+    if(strcmp(smap_get(&smap,PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),
+                "true") == 0)
+    {
+      vty_out(vty,"Lag is multi-chassis cannot change.\n");
+      smap_destroy(&smap);
+      cli_do_config_abort(txn);
+      return CMD_SUCCESS;
     }
 
     smap_clone(&smap, &port_row->other_config);
@@ -1151,6 +1255,7 @@ lacp_add_intf_to_lag(const char *if_name, const char *lag_number)
    const struct ovsrec_interface *row = NULL;
    const struct ovsrec_interface *interface_row = NULL;
    struct ovsdb_idl_txn* status_txn = NULL;
+   const struct ovsrec_mclag  *mclag_row = NULL;
    enum ovsdb_idl_txn_status status;
    char lag_name[LAG_NAME_LENGTH]={0};
    const struct ovsrec_port *port_row = NULL;
@@ -1192,6 +1297,19 @@ lacp_add_intf_to_lag(const char *if_name, const char *lag_number)
       VLOG_ERR(LACP_OVSDB_TXN_CREATE_ERROR,__func__,__LINE__);
       cli_do_config_abort(status_txn);
       return CMD_OVSDB_FAILURE;
+   }
+   mclag_row = ovsrec_mclag_first(idl);
+   if(mclag_row)
+   {
+     if(mclag_row->isl_port)
+     {
+       if(strcmp(mclag_row->isl_port->name,if_name) == 0)
+       {
+         vty_out(vty,"interface is a mclag inter-switch-link cannot be added to LAG\n");
+         cli_do_config_abort(status_txn);
+         return CMD_SUCCESS;
+       }
+     }
    }
 
    /* Delete the port entry of interface if already exists.
@@ -1519,7 +1637,18 @@ lacp_show_aggregates(const char *lag_name)
             if_row = lag_port->interfaces[k];
             vty_out(vty, "%s ", if_row->name);
          }
+         if(strcmp(smap_get(&lag_port->other_config,
+                  PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),"true") == 0)
+         {
+           vty_out(vty, "%s", VTY_NEWLINE);
+                    vty_out(vty, "%s","Aggregated-remote-interfaces : ");
+           for (k = 0; k < lag_port->n_mclag_remote_interfaces; k++)
+           {
+              vty_out(vty, "%s ", lag_port->mclag_remote_interfaces[k]->name);
+           }
+         }
          vty_out(vty, "%s", VTY_NEWLINE);
+
          heartbeat_rate = smap_get(&lag_port->other_config, "lacp-time");
          if(heartbeat_rate)
             vty_out(vty, "%s%s%s", "Heartbeat rate        : ",heartbeat_rate, VTY_NEWLINE);
@@ -1647,6 +1776,159 @@ parse_state_from_db(const char *str, int *ret_str)
                &ret_str[6], &ret_str[7]);
 }
 
+void
+display_remote_actor_partner_info_all()
+{
+   const struct ovsrec_port *lag_port = NULL;
+   const struct ovsrec_mclag_remote_interface *remote_if_row = NULL;
+   int k = 0;
+   int lacp_state_ovsdb[LACP_STATUS_FIELD_COUNT];
+   const char *lacp_state = NULL;
+   char agg_key[20] = {0};
+   char *port_priority = NULL, *port_id = NULL;
+   char *port_priority_id_ovsdb = NULL, *system_priority_id_ovsdb = NULL;
+   char *system_id = NULL, *system_priority = NULL;
+   const char *data_in_db = NULL;
+
+   const char columns[] = "%-5s%-10s%-8s%-9s%-8s%-18s%-9s%-8s";
+   const char *delimiter = "---------------------------------------"
+                           "---------------------------------------";
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty, "Remote Actor details of all interfaces:%s",VTY_NEWLINE);
+   vty_out(vty, delimiter);
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty, columns, "Intf", "Aggregate", "Port", "Port", "State",
+           "System-id", "System", "Aggr");
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty, columns, "", "name", "id", "Priority", "", "", "Priority", "Key");
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty, delimiter);
+   vty_out(vty,"%s", VTY_NEWLINE);
+
+   OVSREC_PORT_FOR_EACH(lag_port, idl)
+   {
+      if(strncmp(lag_port->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0)
+      {
+         if(strcmp(smap_get(&lag_port->other_config,
+                     PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),"true") == 0)
+         {
+           for (k = 0; k < lag_port->n_mclag_remote_interfaces; k++)
+           {
+              remote_if_row = lag_port->mclag_remote_interfaces[k];
+              port_id = port_priority = system_id = system_priority = NULL;
+              data_in_db = remote_if_row->lacp_actor_state;
+              memset(agg_key,0,sizeof(agg_key));
+              if (data_in_db)
+              {
+                if (parse_state_from_db(data_in_db, lacp_state_ovsdb) == LACP_STATUS_FIELD_COUNT)
+                {
+                  lacp_state = get_lacp_state(lacp_state_ovsdb);
+                }
+                sprintf(agg_key, "%ld", *remote_if_row->lacp_actor_key);
+                /*
+                * The system and port priority are kept in the lacp_status column
+                * as part of the id fields separated by commas
+                * e.g port_id = 1,18 where 1 = priority and 18 = id
+                */
+               /* Uncomment this when we have the proper schema */
+               /* port_priority_id_ovsdb = strdup(remote_if_row->lacp_actor_port_id);
+                parse_id_from_db(port_priority_id_ovsdb, &port_priority, &port_id);
+                system_priority_id_ovsdb = strdup(remote_if_row->lacp_actor_system_id);
+                parse_id_from_db(system_priority_id_ovsdb, &system_priority, &system_id);*/
+              }
+
+              /* Display information */
+              vty_out(vty, columns,
+                         remote_if_row->name,
+                         lag_port->name,
+                         port_id ? port_id : " ",
+                         port_priority ? port_priority : " ",
+                         lacp_state ? lacp_state : " ",
+                         system_id ? system_id : " ",
+                         system_priority ? system_priority : " ",
+                         agg_key);
+              vty_out(vty,"%s", VTY_NEWLINE);
+
+              if (port_priority_id_ovsdb){
+                  free(port_priority_id_ovsdb);
+                  port_priority_id_ovsdb = NULL;
+              }
+              if (system_priority_id_ovsdb){
+                  free(system_priority_id_ovsdb);
+                  system_priority_id_ovsdb = NULL;
+              }
+            }
+          }
+        }
+   }
+
+   vty_out(vty,"%s%s", VTY_NEWLINE, VTY_NEWLINE);
+
+   vty_out(vty, "Remote Partner details of all interfaces:%s",VTY_NEWLINE);
+   vty_out(vty, delimiter);
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty, columns, "Intf", "Aggregate", "Partner", "Port",
+           "State", "System-id", "System", "Aggr");
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty, columns, "", "name", "Port-id", "Priority", "", "",
+           "Priority", "Key");
+   vty_out(vty,"%s", VTY_NEWLINE);
+   vty_out(vty, delimiter);
+   vty_out(vty,"%s", VTY_NEWLINE);
+
+   OVSREC_PORT_FOR_EACH(lag_port, idl)
+   {
+      if(strncmp(lag_port->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0)
+      {
+         if(strcmp(smap_get(&lag_port->other_config,
+                     PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),"true") == 0)
+         {
+
+           for (k = 0; k < lag_port->n_mclag_remote_interfaces; k++)
+           {
+              remote_if_row = lag_port->mclag_remote_interfaces[k];
+              port_id = port_priority = system_id = system_priority = NULL;
+              lacp_state = NULL;
+              memset(agg_key,0,sizeof(agg_key));
+              data_in_db = remote_if_row->lacp_partner_state;
+              if (data_in_db)
+              {
+                if (parse_state_from_db(data_in_db, lacp_state_ovsdb) == LACP_STATUS_FIELD_COUNT)
+                {
+                  lacp_state = get_lacp_state(lacp_state_ovsdb);
+                }
+                sprintf(agg_key, "%ld", *remote_if_row->lacp_partner_key);
+                 /* Uncomment this when we have the proper schema */
+               /* port_priority_id_ovsdb = strdup(remote_if_row->lacp_partner_port_id);
+                parse_id_from_db(port_priority_id_ovsdb, &port_priority, &port_id);
+                system_priority_id_ovsdb = strdup(remote_if_row->lacp_partner_system_id);
+                parse_id_from_db(system_priority_id_ovsdb, &system_priority, &system_id);*/
+              }
+              vty_out(vty, columns,
+                         remote_if_row->name,
+                         lag_port->name,
+                         port_id ? port_id : " ",
+                         port_priority ? port_priority : " ",
+                         lacp_state ? lacp_state : " ",
+                         system_id ? system_id : " ",
+                         system_priority ? system_priority : " ",
+                         agg_key);
+              vty_out(vty,"%s", VTY_NEWLINE);
+              if (port_priority_id_ovsdb){
+                  free(port_priority_id_ovsdb);
+                  port_priority_id_ovsdb = NULL;
+              }
+              if (system_priority_id_ovsdb){
+                  free(system_priority_id_ovsdb);
+                  system_priority_id_ovsdb = NULL;
+              }
+           }
+         }
+      }
+   }
+}
+
 static int
 lacp_show_interfaces_all()
 {
@@ -1660,6 +1942,7 @@ lacp_show_interfaces_all()
    char *port_priority_id_ovsdb = NULL, *system_priority_id_ovsdb = NULL;
    char *system_id = NULL, *system_priority = NULL;
    const char *data_in_db = NULL;
+   bool mlag_present = false;
 
    const char columns[] = "%-5s%-10s%-8s%-9s%-8s%-18s%-9s%-8s";
    const char *delimiter = "---------------------------------------"
@@ -1802,8 +2085,23 @@ lacp_show_interfaces_all()
         }
       }
    }
-
-   return CMD_SUCCESS;
+   OVSREC_PORT_FOR_EACH(lag_port, idl)
+   {
+      if(strncmp(lag_port->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0)
+      {
+         if(strcmp(smap_get(&lag_port->other_config,
+                     PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),"true") == 0)
+         {
+           mlag_present = true;
+           break;
+         }
+      }
+    }
+    if(mlag_present)
+    {
+      display_remote_actor_partner_info_all();
+    }
+    return CMD_SUCCESS;
 }
 
 DEFUN (cli_lacp_show_all_interfaces,
@@ -1951,6 +2249,8 @@ static int lag_routing(const char *port_name)
     const struct ovsrec_port *port_row = NULL;
     const struct ovsrec_vrf *default_vrf_row = NULL;
     const struct ovsrec_bridge *default_bridge_row = NULL;
+    const struct ovsrec_mclag  *mclag_row = NULL;
+    struct smap smap = SMAP_INITIALIZER(&smap);
     struct ovsdb_idl_txn *status_txn = NULL;
     enum ovsdb_idl_txn_status status;
     struct ovsrec_port **ports;
@@ -1965,8 +2265,31 @@ static int lag_routing(const char *port_name)
         cli_do_config_abort(status_txn);
         return CMD_OVSDB_FAILURE;
     }
+    mclag_row = ovsrec_mclag_first(idl);
+    if(mclag_row)
+    {
+      if(mclag_row->isl_port)
+      {
+        if(strcmp(mclag_row->isl_port->name,port_name) == 0)
+        {
+          vty_out(vty,"interface is a mclag inter-switch-link cannot enable routing\n");
+          cli_do_config_abort(status_txn);
+          return CMD_SUCCESS;
+        }
+      }
+    }
 
     port_row = port_check_and_add(port_name, false, false, status_txn);
+
+    smap_clone(&smap,&port_row->other_config);
+    if(strcmp(smap_get(&smap,
+                           PORT_OTHER_CONFIG_MAP_MCLAG_ENABLED),"true") == 0)
+    {
+      vty_out(vty,"LAG is a multi-chassis cannot enable routing\n");
+      smap_destroy(&smap);
+      cli_do_config_abort(status_txn);
+      return CMD_SUCCESS;
+    }
 
     if (check_port_in_vrf(port_name)) {
         VLOG_DBG(
@@ -2839,11 +3162,29 @@ static void
 lacp_ovsdb_init()
 {
     ovsdb_idl_add_column(idl, &ovsrec_interface_col_lacp_status);
-
     ovsdb_idl_add_column(idl, &ovsrec_system_col_lacp_config);
+    ovsdb_idl_add_column(idl, &ovsrec_port_col_mclag_remote_interfaces);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_other_config);
     ovsdb_idl_add_column(idl, &ovsrec_interface_col_other_config);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_lacp);
+
+
+    /* Cache MCLAG remote interface table. */
+    ovsdb_idl_add_table(idl, &ovsrec_table_mclag_remote_interface);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_name);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_partner_system_id);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_partner_port_id);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_partner_key);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_partner_state);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_actor_system_id);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_actor_port_id);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_actor_key);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_lacp_actor_state);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_admin_state);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_link_state);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_link_speed);
+    ovsdb_idl_add_column(idl, &ovsrec_mclag_remote_interface_col_duplex);
+
     return;
 }
 /*
