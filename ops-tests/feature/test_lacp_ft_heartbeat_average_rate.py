@@ -18,7 +18,7 @@
 """OpenSwitch Test for LACPD heartbeat configurations."""
 
 from time import sleep
-from pytest import mark
+from pytest import mark, fixture
 from lacp_lib import (
     associate_interface_to_lag,
     associate_vlan_to_l2_interface,
@@ -36,7 +36,6 @@ from lacp_lib import (
     verify_turn_on_interfaces
 )
 
-import pytest
 
 TOPOLOGY = """
 # +-------+                                  +-------+
@@ -53,12 +52,17 @@ TOPOLOGY = """
 [type=host name="Host 2"] hs2
 
 # Links
+sw1:3 -- hs1:1
 hs1:1 -- sw1:4
 sw1:1 -- sw2:1
 sw1:2 -- sw2:2
+hs2:1 -- sw2:3
 sw1:3 -- sw2:3
 hs2:1 -- sw2:4
 """
+
+# Ports
+port_labels = ['1', '2', '3']
 
 # VID for testing
 test_vlan = '2'
@@ -76,6 +80,28 @@ host_interface = '4'
 # hosts addresses
 hs1_addr = '10.0.11.10'
 hs2_addr = '10.0.11.11'
+
+# heart beat info according with rate (slow|fast)
+# packets_per_seconds: LACPDUs sent per second
+# min_percent: minimum percentage of LACPDUs allowed
+#              calculated later as f(wait_time, packets_per_second)
+# max_percent: maximum percentage of LACPDUs allowed
+# wait_time: time for tcpdump
+hb_info = {
+    'slow': {
+        'packets_per_second': (1/30),
+        'min_percent': 0,
+        'max_percent': 1,
+        'wait_time': 90,
+    },
+    'fast': {
+        'packets_per_second': 1,
+        'min_percent': 0,
+        'max_percent': 1,
+        'wait_time': 10
+    }
+}
+
 
 # heart beat info according with rate (slow|fast)
 # packets_per_seconds: LACPDUs sent per second
@@ -177,7 +203,6 @@ def main_setup(request, topology):
                           up=True)
 
     for switch in [sw1, sw2]:
-        # Add interfaces to LAG
         for intf in lag_interfaces:
             associate_interface_to_lag(switch, intf, test_lag)
         # Interface 4 is connected to one host
@@ -187,6 +212,31 @@ def main_setup(request, topology):
     verify_connectivity_between_hosts(hs1, hs1_addr, hs2, hs2_addr, True)
 
 
+@mark.platform_incompatible(['docker'])
+def test_lacpd_heartbeat(topology, main_setup, step):
+    """Test LACP heartbeat average rate (slow/fast).
+
+    print('Configuring IP address to Host 2')
+    hs2.libs.ip.interface('1',
+                          addr='%s/24' % hs2_addr,
+
+    print("Associate interfaces to LAG in both switches")
+    for port in ports_sw1[0:2]:
+        associate_interface_to_lag(sw1, port, test_lag)
+    for port in ports_sw2[0:2]:
+        associate_interface_to_lag(sw2, port, test_lag)
+
+    for switch in [sw1, sw2]:
+        # Interface 4 is connected to one host
+        associate_vlan_to_l2_interface(switch, test_vlan, switch.ports['3'])
+
+    # Adding small delay to compensate for framework delay
+    sleep(10)
+    print('Verify connectivity between hosts')
+    verify_connectivity_between_hosts(hs1, hs1_addr, hs2, hs2_addr, True)
+
+
+@mark.gate
 @mark.platform_incompatible(['docker'])
 def test_lacpd_heartbeat(topology, main_setup, step):
     """Test LACP heartbeat average rate (slow/fast).
@@ -215,7 +265,7 @@ def test_lacpd_heartbeat(topology, main_setup, step):
 
         # Min percentage according heartbeats
         hb_info[lag_rate_mode]['min_percent'] = (heartbeats - 1) / heartbeats
-        hb_info[lag_rate_mode]['max_percent'] += 3 /\
+        hb_info[lag_rate_mode]['max_percent'] += 5 /\
             hb_info[lag_rate_mode]['wait_time']
 
         # Setting values for slow|fast
@@ -242,7 +292,7 @@ def test_lacpd_heartbeat(topology, main_setup, step):
         sw2_initial_diagdump_pdu = get_average_lacpd_sent_pdus(sw2, test_lag)
 
         step('Waiting for some pdus to be sent')
-        sleep(hb_info[lag_rate_mode]['wait_time'] + 2)
+        sleep(hb_info[lag_rate_mode]['wait_time'])
 
         # Get the final amount of pdus sent through the interfaces of the lag
         # using diag-dump lacp basic command.
@@ -264,7 +314,7 @@ def test_lacpd_heartbeat(topology, main_setup, step):
 
             pac_info = get_counters_from_packet_capture(tcp_data)
 
-            final_result = pac_info['received'] / len(lag_interfaces)
+            final_result = pac_info['received'] / len(port_labels[0:2])
 
             packets_avg = (final_result / heartbeats)
 

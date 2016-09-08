@@ -28,6 +28,7 @@
 
 from lib_test import sw_create_bond
 from lib_test import sw_set_intf_user_config
+from pytest import mark
 import pytest
 
 
@@ -63,6 +64,7 @@ def enable_intf_list(sw, intf_list):
         sw_set_intf_user_config(sw, intf, ['admin=up'])
 
 
+@mark.gate
 @pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_ovs_appctl_getlacpstate(topology):
     """
