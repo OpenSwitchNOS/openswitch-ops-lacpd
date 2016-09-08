@@ -18,6 +18,7 @@ from lib_test import sw_create_bond
 from lib_test import sw_set_intf_user_config
 from lib_test import set_system_lacp_config
 from lib_test import verify_intf_lacp_status
+from pytest import mark
 import pytest
 
 TOPOLOGY = """
@@ -35,6 +36,7 @@ test_lag_ifs = ['1', '2']
 system_mac = 'aa:bb:cc:dd:ee:99'
 
 
+@mark.gate
 @pytest.mark.skipif(True, reason="Skipping due to instability")
 def test_lacpd_ct_system_priority(topology, step):
     sw1 = topology.get('sw1')
