@@ -219,10 +219,11 @@ DEFUN (vtysh_intf_link_aggregation,
   }
 }
 
-DEFUN (vtysh_exit_lac_interface,
-             vtysh_exit_lacp_interface_cmd,
-             "exit",
-             "Exit current mode and down to previous mode\n")
+DEFUNSH_NON_IDL (VTYSH_ALL,
+                 vtysh_exit_lacp_interface,
+                 vtysh_exit_lacp_interface_cmd,
+                 "exit",
+                 "Exit current mode and down to previous mode\n")
 {
   return vtysh_exit (vty);
 }
